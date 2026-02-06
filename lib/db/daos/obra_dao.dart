@@ -54,25 +54,40 @@ class ObraDao {
   }
 
   Future<double> calcularPorcentajeAvance(int idObra) async {
-    // Calcular porcentaje promedio de las actividades de la obra
-    final result = await db.rawQuery(
-      '''
-      SELECT AVG(a.porcentaje_ejecutado) as promedio
-      FROM avances a
-      INNER JOIN actividades act ON a.id_actividad = act.id_actividad
-      WHERE act.id_obra = ?
-    ''',
-      [idObra],
+    final actividades = await db.query(
+      'actividades',
+      where: 'id_obra = ?',
+      whereArgs: [idObra],
     );
 
-    if (result.isNotEmpty && result.first['promedio'] != null) {
-      return (result.first['promedio'] as num).toDouble();
-    }
-    return 0.0;
+    if (actividades.isEmpty) return 0.0;
+
+    final total = actividades.length;
+    final completadas = actividades
+        .where((a) => a['estado'] == 'COMPLETADA')
+        .length;
+
+    return (completadas / total) * 100.0;
   }
 
   Future<int> count() async {
     final result = await db.rawQuery('SELECT COUNT(*) FROM obras');
     return Sqflite.firstIntValue(result) ?? 0;
   }
+
+  Future<List<Obra>> search(String query) async {
+    final searchTerm = '%$query%';
+
+    final List<Map<String, dynamic>> maps = await db.rawQuery('''
+    SELECT * FROM obras
+    WHERE nombre LIKE ?
+       OR descripcion LIKE ?
+       OR cliente LIKE ?
+       OR direccion LIKE ?
+    ORDER BY fecha_inicio DESC
+  ''', [searchTerm, searchTerm, searchTerm, searchTerm]);
+
+    return List.generate(maps.length, (i) => Obra.fromMap(maps[i]));
+  }
+
 }

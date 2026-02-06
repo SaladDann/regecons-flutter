@@ -12,7 +12,7 @@ class AppDatabase {
 
   static Database? _database;
 
-  // DEFINICIÓN DE TABLAS
+  // TABLAS
   static const String _tablaRoles = '''
   CREATE TABLE roles (
     id_rol INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -33,8 +33,7 @@ class AppDatabase {
     password_salt TEXT NOT NULL,
     fecha_ultimo_cambio_password INTEGER,
     acepta_terminos INTEGER NOT NULL CHECK(acepta_terminos IN (0,1)),
-    estado TEXT NOT NULL CHECK(estado IN ('ACTIVO','INACTIVO','BLOQUEADO'))
-      DEFAULT 'ACTIVO',
+    estado TEXT NOT NULL CHECK(estado IN ('ACTIVO','INACTIVO','BLOQUEADO')) DEFAULT 'ACTIVO',
     fecha_creacion INTEGER NOT NULL,
     id_rol INTEGER NOT NULL,
     FOREIGN KEY (id_rol) REFERENCES roles(id_rol)
@@ -79,27 +78,25 @@ class AppDatabase {
   );
   ''';
 
+  // ================= ACTIVIDADES =================
   static const String _tablaActividades = '''
   CREATE TABLE actividades (
     id_actividad INTEGER PRIMARY KEY AUTOINCREMENT,
     id_obra INTEGER NOT NULL,
     nombre TEXT NOT NULL,
     descripcion TEXT,
-    peso_porcentual REAL CHECK(peso_porcentual >= 0 AND peso_porcentual <= 100),
     estado TEXT DEFAULT 'PENDIENTE',
     FOREIGN KEY (id_obra) REFERENCES obras(id_obra)
   );
   ''';
 
+  // ================= AVANCES =================
   static const String _tablaAvances = '''
   CREATE TABLE avances (
     id_avance INTEGER PRIMARY KEY AUTOINCREMENT,
     id_actividad INTEGER NOT NULL,
     id_usuario INTEGER NOT NULL,
     fecha INTEGER NOT NULL,
-    porcentaje_ejecutado REAL CHECK(
-      porcentaje_ejecutado >= 0 AND porcentaje_ejecutado <= 100
-    ),
     horas_trabajadas REAL,
     descripcion TEXT,
     evidencia_foto TEXT,
@@ -127,7 +124,7 @@ class AppDatabase {
   );
   ''';
 
-  // ACCESO A LA BASE DE DATOS
+  // ================= BASE DE DATOS =================
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB();
@@ -149,7 +146,6 @@ class AppDatabase {
     await db.execute('PRAGMA foreign_keys = ON');
   }
 
-  // CREACIÓN INICIAL
   Future<void> _onCreate(Database db, int version) async {
     await db.execute(_tablaRoles);
     await db.execute(_tablaUsuarios);
@@ -160,35 +156,26 @@ class AppDatabase {
     await db.execute(_tablaAvances);
     await db.execute(_tablaReportesSeguridad);
 
+    // Índices
     await db.execute('CREATE INDEX idx_usuarios_rol ON usuarios(id_rol);');
     await db.execute('CREATE INDEX idx_usuarios_username ON usuarios(username);');
     await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email);');
-
     await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(id_usuario);');
     await db.execute('CREATE INDEX idx_actividades_obra ON actividades(id_obra);');
     await db.execute('CREATE INDEX idx_avances_actividad ON avances(id_actividad);');
     await db.execute('CREATE INDEX idx_avances_usuario ON avances(id_usuario);');
     await db.execute('CREATE INDEX idx_reportes_obra ON reportes_seguridad(id_obra);');
 
-    await db.execute('''
-      CREATE UNIQUE INDEX idx_avance_diario
-      ON avances(id_actividad, id_usuario, fecha);
-    ''');
-
     await _insertarRolesIniciales(db);
     await _insertarUsuarioAdmin(db);
   }
 
-  // MIGRACIONES FUTURAS
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
-    // Reservado para futuras versiones
-  }
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {}
 
-  // DATOS ADMINISTRADOR
+  // DATOS INICIALES
   Future<void> _insertarRolesIniciales(Database db) async {
     final count = await db.rawQuery('SELECT COUNT(*) FROM roles');
     final rowCount = Sqflite.firstIntValue(count) ?? 0;
-
     if (rowCount == 0) {
       await db.insert('roles', {'nombre': 'ADMIN', 'descripcion': 'Administrador'});
       await db.insert('roles', {'nombre': 'SUPERVISOR', 'descripcion': 'Supervisor de obra'});
@@ -197,11 +184,7 @@ class AppDatabase {
   }
 
   Future<void> _insertarUsuarioAdmin(Database db) async {
-    final count = await db.rawQuery(
-      'SELECT COUNT(*) FROM usuarios WHERE username = ?',
-      ['admin'],
-    );
-
+    final count = await db.rawQuery('SELECT COUNT(*) FROM usuarios WHERE username = ?', ['admin']);
     if ((Sqflite.firstIntValue(count) ?? 0) == 0) {
       final rol = await db.query('roles', where: 'nombre = ?', whereArgs: ['ADMIN']);
       if (rol.isEmpty) return;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../services/obra_service.dart';
 import '../../../models/obra.dart';
+import 'obra_detalle_screen.dart';
 import 'obras_form_screen.dart';
 import '../widgets/obra_card.dart';
 import '../widgets/search_bar.dart';
@@ -32,7 +33,9 @@ class _ObrasScreenState extends State<ObrasScreen> {
   Future<void> _cargarObras() async {
     setState(() => _isLoading = true);
     try {
+      // Obtener obras con actividades y porcentaje de avance calculado en DAO
       final obras = await _obraService.obtenerObrasConDetalles();
+
       setState(() {
         _todasObras = obras;
         _aplicarFiltros();
@@ -46,6 +49,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
 
   void _aplicarFiltros() {
     List<Obra> filtradas = _todasObras;
+
     if (_searchQuery.isNotEmpty) {
       final query = _searchQuery.toLowerCase();
       filtradas = filtradas.where((obra) {
@@ -54,9 +58,11 @@ class _ObrasScreenState extends State<ObrasScreen> {
             (obra.cliente?.toLowerCase().contains(query) ?? false);
       }).toList();
     }
+
     if (_showOnlyActive) {
       filtradas = filtradas.where((obra) => obra.estado == 'ACTIVA').toList();
     }
+
     setState(() => _obrasFiltradas = filtradas);
   }
 
@@ -70,29 +76,30 @@ class _ObrasScreenState extends State<ObrasScreen> {
     _aplicarFiltros();
   }
 
-
   void _navegarAFormularioObra({Obra? obra}) {
     Navigator.push(
       context,
       MaterialPageRoute(
         builder: (context) => ObraFormScreen(obra: obra),
       ),
-    ).then((_) => _cargarObras()); // Recarga la lista al volver
+    ).then((_) => _cargarObras());
   }
 
   void _verDetallesObra(Obra obra) {
-    // Se mantiene el mensaje de "En desarrollo" como pediste
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Detalles de "${obra.nombre}" - En desarrollo'), backgroundColor: Colors.blue),
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => ObraDetalleScreen(
+          idObra: obra.idObra!,
+        ),
+      ),
     );
   }
-
-
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFF10121D), // Fondo acorde al Home
+      backgroundColor: const Color(0xFF10121D),
       appBar: AppBar(
         elevation: 0,
         backgroundColor: const Color(0xFF181B35),
@@ -108,14 +115,20 @@ class _ObrasScreenState extends State<ObrasScreen> {
           Center(
             child: Padding(
               padding: const EdgeInsets.only(right: 16),
-              child: Text('${_obrasFiltradas.length} Total', style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+              child: Text(
+                '${_obrasFiltradas.length} Total',
+                style: const TextStyle(
+                  color: Colors.orange,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ),
         ],
       ),
       body: Column(
         children: [
-          // BARRA DE BÚSQUEDA PERSONALIZADA
+          // BARRA DE BÚSQUEDA
           Container(
             padding: const EdgeInsets.all(16),
             color: const Color(0xFF181B35),
@@ -138,7 +151,8 @@ class _ObrasScreenState extends State<ObrasScreen> {
                   backgroundColor: const Color(0xFF1E2130),
                   selectedColor: Colors.orange.withOpacity(0.2),
                   checkmarkColor: Colors.orange,
-                  labelStyle: TextStyle(color: _showOnlyActive ? Colors.orange : Colors.white60),
+                  labelStyle: TextStyle(
+                      color: _showOnlyActive ? Colors.orange : Colors.white60),
                 ),
                 const Spacer(),
                 IconButton(
@@ -149,7 +163,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
             ),
           ),
 
-          // LISTADO
+          // LISTADO DE OBRAS
           Expanded(
             child: _buildObrasList(),
           ),
@@ -159,7 +173,8 @@ class _ObrasScreenState extends State<ObrasScreen> {
         onPressed: () => _navegarAFormularioObra(),
         backgroundColor: Colors.orange,
         icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('NUEVA OBRA', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        label: const Text('NUEVA OBRA',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
       ),
     );
   }
@@ -185,7 +200,8 @@ class _ObrasScreenState extends State<ObrasScreen> {
         return ObraCard(
           obra: obra,
           onEditar: () => _navegarAFormularioObra(obra: obra),
-          onFinalizar: obra.estado == 'FINALIZADA' ? null : () => _finalizarObra(obra),
+          onFinalizar:
+          obra.estado == 'FINALIZADA' ? null : () => _finalizarObra(obra),
           onEliminar: () => _mostrarConfirmacionEliminar(obra),
           onTap: () => _verDetallesObra(obra),
         );
@@ -193,7 +209,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
     );
   }
 
-  // Métodos de lógica
+  // MÉTODOS AUXILIARES
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -233,6 +249,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
       ),
     );
   }
+
   Future<void> _eliminarObra(Obra obra) async {
     if (obra.idObra == null) {
       _mostrarError('La obra no tiene ID válido');
@@ -242,7 +259,6 @@ class _ObrasScreenState extends State<ObrasScreen> {
     try {
       await _obraService.eliminarObraCompleta(obra.idObra!);
 
-      // Actualizar lista
       setState(() {
         _todasObras.removeWhere((o) => o.idObra == obra.idObra);
         _obrasFiltradas.removeWhere((o) => o.idObra == obra.idObra);
@@ -266,7 +282,6 @@ class _ObrasScreenState extends State<ObrasScreen> {
     }
 
     try {
-      // Crear copia de la obra con estado FINALIZADA
       final obraActualizada = Obra(
         idObra: obra.idObra,
         nombre: obra.nombre,
@@ -282,19 +297,14 @@ class _ObrasScreenState extends State<ObrasScreen> {
 
       await _obraService.actualizarObra(obraActualizada);
 
-      // Actualizar en ambas listas
       setState(() {
-        // Actualizar en todas las obras
         final index = _todasObras.indexWhere((o) => o.idObra == obra.idObra);
-        if (index != -1) {
-          _todasObras[index] = obraActualizada;
-        }
+        if (index != -1) _todasObras[index] = obraActualizada;
 
-        // Actualizar en obras filtradas
-        final filtradoIndex = _obrasFiltradas.indexWhere((o) => o.idObra == obra.idObra);
-        if (filtradoIndex != -1) {
-          _obrasFiltradas[filtradoIndex] = obraActualizada;
-        }
+        final filtradoIndex =
+        _obrasFiltradas.indexWhere((o) => o.idObra == obra.idObra);
+        if (filtradoIndex != -1) _obrasFiltradas[filtradoIndex] =
+            obraActualizada;
       });
 
       ScaffoldMessenger.of(context).showSnackBar(

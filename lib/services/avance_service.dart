@@ -18,44 +18,35 @@ class AvanceService {
     }
   }
 
-  // REGISTRAR un nuevo avance
-  Future<Avance> registrarAvance({
+  // CREAR un nuevo avance
+  Future<Avance> crearAvance({
     required int idActividad,
     required int idUsuario,
+    required DateTime fecha,
     required double porcentajeEjecutado,
+    required double horasTrabajadas,
     String? descripcion,
-    double? horasTrabajadas,
     String? evidenciaFoto,
+    String estado = 'REGISTRADO',
   }) async {
     await _initialize();
 
-    // Validar porcentaje
-    if (porcentajeEjecutado < 0 || porcentajeEjecutado > 100) {
-      throw Exception('El porcentaje debe estar entre 0 y 100');
-    }
-
-    // Verificar que la actividad exista
     final actividad = await _actividadDao.getById(idActividad);
-    if (actividad == null) {
-      throw Exception('La actividad no existe');
-    }
+    if (actividad == null) throw Exception('La actividad no existe');
 
     final nuevoAvance = Avance(
       idActividad: idActividad,
       idUsuario: idUsuario,
-      fecha: DateTime.now(),
+      fecha: fecha,
       porcentajeEjecutado: porcentajeEjecutado,
-      horasTrabajadas: horasTrabajadas,
+      horasTrabajadas: horasTrabajadas, // puede ser null si no se pasa
       descripcion: descripcion,
       evidenciaFoto: evidenciaFoto,
-      estado: 'REGISTRADO',
+      estado: estado,
     );
 
     final id = await _avanceDao.insert(nuevoAvance);
     nuevoAvance.idAvance = id;
-
-    // Actualizar estado de la actividad si corresponde
-    await _actualizarEstadoActividad(idActividad);
 
     return nuevoAvance;
   }
@@ -63,37 +54,17 @@ class AvanceService {
   // ACTUALIZAR un avance existente
   Future<Avance> actualizarAvance(Avance avance) async {
     await _initialize();
-
-    if (avance.idAvance == null) {
-      throw Exception('El avance no tiene ID');
-    }
-
-    // Validar porcentaje
-    if (avance.porcentajeEjecutado < 0 || avance.porcentajeEjecutado > 100) {
-      throw Exception('El porcentaje debe estar entre 0 y 100');
-    }
-
+    if (avance.idAvance == null) throw Exception('El avance no tiene ID');
     await _avanceDao.update(avance);
-
-    // Actualizar estado de la actividad
-    await _actualizarEstadoActividad(avance.idActividad);
-
     return avance;
   }
 
   // ELIMINAR un avance
   Future<void> eliminarAvance(int idAvance) async {
     await _initialize();
-
     final avance = await _avanceDao.getById(idAvance);
-    if (avance == null) {
-      throw Exception('El avance no existe');
-    }
-
+    if (avance == null) throw Exception('El avance no existe');
     await _avanceDao.delete(idAvance);
-
-    // Actualizar estado de la actividad
-    await _actualizarEstadoActividad(avance.idActividad);
   }
 
   // OBTENER avances por actividad
@@ -102,137 +73,103 @@ class AvanceService {
     return await _avanceDao.getByActividad(idActividad);
   }
 
-  // OBTENER avances por obra
-  Future<List<Avance>> obtenerAvancesPorObra(int idObra) async {
-    await _initialize();
-    return await _avanceDao.getByObra(idObra);
-  }
-
   // OBTENER avances por usuario
   Future<List<Avance>> obtenerAvancesPorUsuario(int idUsuario) async {
     await _initialize();
     return await _avanceDao.getByUsuario(idUsuario);
   }
 
-  // OBTENER avances por fecha
-  Future<List<Avance>> obtenerAvancesPorFecha(DateTime fecha) async {
+  // OBTENER avances por obra
+  Future<List<Avance>> obtenerAvancesPorObra(int idObra) async {
     await _initialize();
-
-    final startOfDay = DateTime(fecha.year, fecha.month, fecha.day);
-    final endOfDay = startOfDay.add(const Duration(days: 1));
-
-    return await _avanceDao.getByFechaRange(startOfDay, endOfDay);
+    return await _avanceDao.getByObra(idObra);
   }
 
   // OBTENER avances por rango de fechas
-  Future<List<Avance>> obtenerAvancesPorRangoFechas(
-      DateTime fechaInicio,
-      DateTime fechaFin,
-      ) async {
+  Future<List<Avance>> obtenerAvancesPorFechaRange(DateTime inicio, DateTime fin) async {
     await _initialize();
-    return await _avanceDao.getByFechaRange(fechaInicio, fechaFin);
+    return await _avanceDao.getByFechaRange(inicio, fin);
   }
 
-  // BUSCAR avances
-  Future<List<Avance>> buscarAvances(String query) async {
+  // OBTENER último avance de una actividad
+  Future<Avance?> obtenerUltimoAvance(int idActividad) async {
     await _initialize();
-    return await _avanceDao.search(query);
-  }
-
-  // CALCULAR estadísticas de avances
-  Future<Map<String, dynamic>> obtenerEstadisticasAvances() async {
-    await _initialize();
-    return await _avanceDao.getEstadisticas();
+    return await _avanceDao.getUltimoByActividad(idActividad);
   }
 
   // CAMBIAR estado de un avance
   Future<void> cambiarEstadoAvance(int idAvance, String nuevoEstado) async {
     await _initialize();
-
     final estadosValidos = ['REGISTRADO', 'EN_PROCESO', 'FINALIZADO', 'CANCELADO'];
-    if (!estadosValidos.contains(nuevoEstado)) {
-      throw Exception('Estado no válido: $nuevoEstado');
-    }
-
+    if (!estadosValidos.contains(nuevoEstado)) throw Exception('Estado no válido: $nuevoEstado');
     await _avanceDao.updateEstado(idAvance, nuevoEstado);
-
-    // Obtener el avance para actualizar la actividad
-    final avance = await _avanceDao.getById(idAvance);
-    if (avance != null) {
-      await _actualizarEstadoActividad(avance.idActividad);
-    }
   }
 
-  // OBTENER resumen de avances por actividad
-  Future<Map<String, dynamic>> obtenerResumenPorActividad(int idActividad) async {
+  // CALCULAR porcentaje promedio de avance por actividad
+  Future<double> calcularPromedioPorActividad(int idActividad) async {
     await _initialize();
+    return await _avanceDao.calcularPromedioPorActividad(idActividad);
+  }
+
+  // CONTAR avances por actividad
+  Future<int> contarAvancesPorActividad(int idActividad) async {
+    await _initialize();
+    return await _avanceDao.countByActividad(idActividad);
+  }
+
+  // CONTAR avances por usuario
+  Future<int> contarAvancesPorUsuario(int idUsuario) async {
+    await _initialize();
+    return await _avanceDao.countByUsuario(idUsuario);
+  }
+
+  // SUMAR horas trabajadas por actividad
+  Future<double> sumarHorasPorActividad(int idActividad) async {
+    await _initialize();
+    return await _avanceDao.sumHorasByActividad(idActividad);
+  }
+
+  // ELIMINAR todos los avances de una actividad
+  Future<void> eliminarAvancesPorActividad(int idActividad) async {
+    await _initialize();
+    await _avanceDao.deleteByActividad(idActividad);
+  }
+
+  // BUSCAR avances por texto
+  Future<List<Avance>> buscarAvances(String query) async {
+    await _initialize();
+    return await _avanceDao.search(query);
+  }
+
+  // OBTENER estadísticas generales de avances
+  Future<Map<String, dynamic>> obtenerEstadisticas() async {
+    await _initialize();
+    return await _avanceDao.getEstadisticas();
+  }
+
+  // OBTENER resumen de actividad (actividad + avances)
+  Future<Map<String, dynamic>> obtenerResumenActividad(int idActividad) async {
+    await _initialize();
+
+    final actividad = await _actividadDao.getById(idActividad);
+    if (actividad == null) throw Exception('La actividad no existe');
 
     final avances = await _avanceDao.getByActividad(idActividad);
     final promedio = await _avanceDao.calcularPromedioPorActividad(idActividad);
-    final totalHoras = await _avanceDao.sumHorasByActividad(idActividad);
-    final ultimoAvance = await _avanceDao.getUltimoByActividad(idActividad);
+    actividad.porcentajeCompletado = promedio;
+
+    final totalHoras = avances.fold<double>(
+      0,
+          (sum, a) => sum + (a.horasTrabajadas ?? 0),
+    );
 
     return {
+      'actividad': actividad,
+      'avances': avances,
+      'porcentaje_completado': promedio,
       'total_avances': avances.length,
-      'porcentaje_promedio': promedio,
       'total_horas': totalHoras,
-      'ultimo_avance': ultimoAvance,
-      'avances': avances,
     };
-  }
-
-  // OBTENER resumen de avances por obra
-  Future<Map<String, dynamic>> obtenerResumenPorObra(int idObra) async {
-    await _initialize();
-
-    final avances = await _avanceDao.getByObra(idObra);
-
-    // Agrupar por actividad
-    final avancesPorActividad = <int, List<Avance>>{};
-    for (var avance in avances) {
-      avancesPorActividad.putIfAbsent(avance.idActividad, () => []);
-      avancesPorActividad[avance.idActividad]!.add(avance);
-    }
-
-    // Calcular estadísticas
-    int totalAvances = avances.length;
-    double totalHoras = 0;
-    for (var avance in avances) {
-      if (avance.horasTrabajadas != null) {
-        totalHoras += avance.horasTrabajadas!;
-      }
-    }
-
-    return {
-      'total_avances': totalAvances,
-      'total_horas': totalHoras,
-      'avances_por_actividad': avancesPorActividad.length,
-      'avances': avances,
-    };
-  }
-
-  // Método privado para actualizar estado de actividad
-  Future<void> _actualizarEstadoActividad(int idActividad) async {
-    final promedio = await _avanceDao.calcularPromedioPorActividad(idActividad);
-
-    String nuevoEstado;
-    if (promedio >= 100) {
-      nuevoEstado = 'COMPLETADA';
-    } else if (promedio > 0) {
-      nuevoEstado = 'EN_PROGRESO';
-    } else {
-      nuevoEstado = 'PENDIENTE';
-    }
-
-    await _actividadDao.updateEstado(idActividad, nuevoEstado);
-  }
-
-  // OBTENER avances con fotos
-  Future<List<Avance>> obtenerAvancesConFotos() async {
-    await _initialize();
-
-    final todosAvances = await _avanceDao.getAll();
-    return todosAvances.where((avance) => avance.tieneEvidencia).toList();
   }
 
   // GENERAR reporte de avances
@@ -256,22 +193,12 @@ class AvanceService {
       avances = await _avanceDao.getAll();
     }
 
-    // Filtrar por fechas si se especificaron
-    if (fechaInicio != null && fechaFin != null) {
-      avances = avances.where((avance) {
-        return avance.fecha.isAfter(fechaInicio) &&
-            avance.fecha.isBefore(fechaFin);
-      }).toList();
-    }
-
     // Calcular estadísticas del reporte
     double totalHoras = 0;
     double porcentajePromedio = 0;
 
     for (var avance in avances) {
-      if (avance.horasTrabajadas != null) {
-        totalHoras += avance.horasTrabajadas!;
-      }
+      totalHoras += avance.horasTrabajadas ?? 0;
       porcentajePromedio += avance.porcentajeEjecutado;
     }
 
@@ -290,3 +217,7 @@ class AvanceService {
     };
   }
 }
+
+
+
+

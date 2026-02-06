@@ -10,7 +10,7 @@ class Obra {
   DateTime? fechaFin;
   double? presupuesto;
   String estado; // 'PLANIFICADA','ACTIVA','SUSPENDIDA','FINALIZADA'
-  double? porcentajeAvance; // Calculado
+  double? porcentajeAvance;
 
   Obra({
     this.idObra,

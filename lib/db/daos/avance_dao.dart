@@ -32,7 +32,10 @@ class AvanceDao {
 
   // OBTENER todos los avances
   Future<List<Avance>> getAll() async {
-    final List<Map<String, dynamic>> maps = await db.query('avances');
+    final List<Map<String, dynamic>> maps = await db.query(
+      'avances',
+      orderBy: 'fecha DESC',
+    );
     return List.generate(maps.length, (i) => Avance.fromMap(maps[i]));
   }
 
@@ -107,20 +110,6 @@ class AvanceDao {
       orderBy: 'fecha DESC',
     );
     return List.generate(maps.length, (i) => Avance.fromMap(maps[i]));
-  }
-
-  // CALCULAR porcentaje promedio de avance por actividad
-  Future<double> calcularPromedioPorActividad(int idActividad) async {
-    final result = await db.rawQuery('''
-      SELECT AVG(porcentaje_ejecutado) as promedio
-      FROM avances
-      WHERE id_actividad = ?
-    ''', [idActividad]);
-
-    if (result.isNotEmpty && result.first['promedio'] != null) {
-      return (result.first['promedio'] as num).toDouble();
-    }
-    return 0.0;
   }
 
   // CONTAR avances por actividad
@@ -225,5 +214,29 @@ class AvanceDao {
       'en_proceso': Sqflite.firstIntValue(enProceso) ?? 0,
       'pendientes': Sqflite.firstIntValue(pendientes) ?? 0,
     };
+  }
+
+  Future<double> calcularPromedioPorActividad(int idActividad) async {
+
+    final result = await db.rawQuery(
+      'SELECT estado FROM actividades WHERE id_actividad = ?',
+      [idActividad],
+    );
+
+    if (result.isEmpty) return 0.0;
+
+    return result.first['estado'] == 'COMPLETADA' ? 100.0 : 0.0;
+  }
+
+  Future<double> calcularPorcentajeAvanceObra(int idObra) async {
+    // Obtener todas las actividades de la obra
+    final actividades = await getByObra(idObra);
+    if (actividades.isEmpty) return 0.0;
+
+    // Contar cuántas están finalizadas
+    final completadas = actividades.where((a) => a.estado == 'COMPLETADA').length;
+
+    // Calcular porcentaje
+    return (completadas / actividades.length) * 100.0;
   }
 }

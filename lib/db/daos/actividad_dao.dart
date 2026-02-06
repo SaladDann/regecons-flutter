@@ -55,7 +55,6 @@ class ActividadDao {
       'actividades',
       where: 'id_obra = ?',
       whereArgs: [idObra],
-      orderBy: 'peso_porcentual DESC',
     );
     return List.generate(maps.length, (i) => Actividad.fromMap(maps[i]));
   }
@@ -66,7 +65,7 @@ class ActividadDao {
       'actividades',
       where: 'estado = ?',
       whereArgs: [estado],
-      orderBy: 'id_obra, peso_porcentual DESC',
+      orderBy: 'id_obra',
     );
     return List.generate(maps.length, (i) => Actividad.fromMap(maps[i]));
   }
@@ -77,7 +76,6 @@ class ActividadDao {
       'actividades',
       where: 'id_obra = ? AND estado = ?',
       whereArgs: [idObra, estado],
-      orderBy: 'peso_porcentual DESC',
     );
     return List.generate(maps.length, (i) => Actividad.fromMap(maps[i]));
   }
@@ -100,68 +98,11 @@ class ActividadDao {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  // CALCULAR suma de pesos porcentuales por obra
-  Future<double> sumPesosByObra(int idObra) async {
-    final result = await db.rawQuery('''
-      SELECT SUM(peso_porcentual) as total_peso
-      FROM actividades
-      WHERE id_obra = ?
-    ''', [idObra]);
-
-    if (result.isNotEmpty && result.first['total_peso'] != null) {
-      return (result.first['total_peso'] as num).toDouble();
-    }
-    return 0.0;
-  }
-
-  // CALCULAR porcentaje de avance de obra basado en actividades
-  Future<double> calcularPorcentajeAvanceObra(int idObra) async {
-    // Obtener todas las actividades de la obra con sus pesos
-    final actividades = await getByObra(idObra);
-
-    if (actividades.isEmpty) return 0.0;
-
-    double porcentajeTotal = 0.0;
-
-    for (var actividad in actividades) {
-      // Calcular porcentaje completado de cada actividad
-      final porcentajeActividad = await _calcularPorcentajeActividad(actividad.idActividad!);
-      final contribucion = (actividad.pesoPorcentual * porcentajeActividad) / 100;
-      porcentajeTotal += contribucion;
-    }
-
-    return porcentajeTotal;
-  }
-
-  // Método privado para calcular porcentaje de actividad
-  Future<double> _calcularPorcentajeActividad(int idActividad) async {
-    final result = await db.rawQuery('''
-      SELECT AVG(porcentaje_ejecutado) as promedio
-      FROM avances
-      WHERE id_actividad = ?
-    ''', [idActividad]);
-
-    if (result.isNotEmpty && result.first['promedio'] != null) {
-      return (result.first['promedio'] as num).toDouble();
-    }
-    return 0.0;
-  }
-
   // ACTUALIZAR estado de una actividad
   Future<int> updateEstado(int idActividad, String estado) async {
     return await db.update(
       'actividades',
       {'estado': estado},
-      where: 'id_actividad = ?',
-      whereArgs: [idActividad],
-    );
-  }
-
-  // ACTUALIZAR peso porcentual de una actividad
-  Future<int> updatePeso(int idActividad, double nuevoPeso) async {
-    return await db.update(
-      'actividades',
-      {'peso_porcentual': nuevoPeso},
       where: 'id_actividad = ?',
       whereArgs: [idActividad],
     );
@@ -174,7 +115,7 @@ class ActividadDao {
       SELECT * FROM actividades 
       WHERE nombre LIKE ? 
       OR descripcion LIKE ?
-      ORDER BY id_obra, peso_porcentual DESC
+      ORDER BY id_obra
     ''', [searchTerm, searchTerm]);
 
     return List.generate(maps.length, (i) => Actividad.fromMap(maps[i]));
@@ -187,7 +128,7 @@ class ActividadDao {
       SELECT * FROM actividades 
       WHERE id_obra = ? 
       AND (nombre LIKE ? OR descripcion LIKE ?)
-      ORDER BY peso_porcentual DESC
+      ORDER BY id_actividad
     ''', [idObra, searchTerm, searchTerm]);
 
     return List.generate(maps.length, (i) => Actividad.fromMap(maps[i]));
@@ -195,7 +136,6 @@ class ActividadDao {
 
   // OBTENER actividades próximas a vencer (con fecha estimada)
   Future<List<Actividad>> getProximasAVencer({int dias = 7}) async {
-    // Esto es un ejemplo. Podrías tener un campo fecha_estimada en la tabla
     final List<Map<String, dynamic>> maps = await db.rawQuery('''
       SELECT * FROM actividades 
       WHERE estado = 'PENDIENTE' OR estado = 'EN_PROGRESO'
@@ -206,7 +146,7 @@ class ActividadDao {
     return List.generate(maps.length, (i) => Actividad.fromMap(maps[i]));
   }
 
-  // OBTENER estadísticas de actividades
+  // OBTENER estadísticas de actividades (solo conteo de avances)
   Future<Map<String, dynamic>> getEstadisticasByObra(int idObra) async {
     final total = await db.rawQuery(
       'SELECT COUNT(*) FROM actividades WHERE id_obra = ?',
@@ -220,22 +160,31 @@ class ActividadDao {
       'SELECT COUNT(*) FROM actividades WHERE id_obra = ? AND estado = ?',
       [idObra, 'EN_PROGRESO'],
     );
-    final pendientes = await db.rawQuery(
-      'SELECT COUNT(*) FROM actividades WHERE id_obra = ? AND estado = ?',
-      [idObra, 'PENDIENTE'],
+    final registrados = await db.rawQuery(
+      'SELECT COUNT(*) FROM avances WHERE id_actividad IN (SELECT id_actividad FROM actividades WHERE id_obra = ?)',
+      [idObra],
     );
 
     return {
       'total': Sqflite.firstIntValue(total) ?? 0,
-      'completadas': Sqflite.firstIntValue(completadas) ?? 0,
-      'en_progreso': Sqflite.firstIntValue(enProgreso) ?? 0,
-      'pendientes': Sqflite.firstIntValue(pendientes) ?? 0,
+      'registrados': Sqflite.firstIntValue(registrados) ?? 0,
+      'en_proceso': Sqflite.firstIntValue(enProgreso) ?? 0,
+      'finalizados': Sqflite.firstIntValue(completadas) ?? 0,
     };
   }
 
-  // VERIFICAR si el peso total de actividades de una obra excede 100%
-  Future<bool> validarPesosObra(int idObra, double nuevoPeso) async {
-    final currentPeso = await sumPesosByObra(idObra);
-    return (currentPeso + nuevoPeso) <= 100.0;
+  // CALCULAR porcentaje de avance total de una obra
+  Future<double> calcularPorcentajeAvanceObra(int idObra) async {
+    final actividades = await getByObra(idObra);
+
+    if (actividades.isEmpty) return 0.0;
+
+    final total = actividades.length;
+    final completadas =
+        actividades.where((a) => a.estado == 'COMPLETADA').length;
+
+    return (completadas / total) * 100.0;
   }
+
 }
+

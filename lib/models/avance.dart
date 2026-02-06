@@ -6,49 +6,49 @@ class Avance {
   int idActividad;
   int idUsuario;
   DateTime fecha;
-  double porcentajeEjecutado;
-  double? horasTrabajadas;
+  double horasTrabajadas;
   String? descripcion;
   String? evidenciaFoto;
   String estado;
+
+  // Solo para UI, no persistente
+  double porcentajeEjecutado = 0;
 
   Avance({
     this.idAvance,
     required this.idActividad,
     required this.idUsuario,
     required this.fecha,
-    required this.porcentajeEjecutado,
-    this.horasTrabajadas,
+    this.porcentajeEjecutado = 0,
+    this.horasTrabajadas = 0,
     this.descripcion,
     this.evidenciaFoto,
     this.estado = 'REGISTRADO',
   });
 
-  // Convertir de Map a Avance
+  // Convertir de Map a Avance (solo columnas reales de BD)
   factory Avance.fromMap(Map<String, dynamic> map) {
     return Avance(
       idAvance: map['id_avance'],
       idActividad: map['id_actividad'],
       idUsuario: map['id_usuario'],
       fecha: DateTime.fromMillisecondsSinceEpoch(map['fecha']),
-      porcentajeEjecutado: (map['porcentaje_ejecutado'] as num).toDouble(),
       horasTrabajadas: map['horas_trabajadas'] != null
           ? (map['horas_trabajadas'] as num).toDouble()
-          : null,
+          : 0,
       descripcion: map['descripcion'],
       evidenciaFoto: map['evidencia_foto'],
       estado: map['estado'] ?? 'REGISTRADO',
     );
   }
 
-  // Convertir de Avance a Map
+  // Convertir de Avance a Map (solo columnas reales de BD)
   Map<String, dynamic> toMap() {
     return {
       'id_avance': idAvance,
       'id_actividad': idActividad,
       'id_usuario': idUsuario,
       'fecha': fecha.millisecondsSinceEpoch,
-      'porcentaje_ejecutado': porcentajeEjecutado,
       'horas_trabajadas': horasTrabajadas,
       'descripcion': descripcion,
       'evidencia_foto': evidenciaFoto,
@@ -57,17 +57,13 @@ class Avance {
   }
 
   // Métodos de utilidad
-  String get fechaFormateada {
-    return '${fecha.day}/${fecha.month}/${fecha.year}';
-  }
+  String get fechaFormateada =>
+      '${fecha.day}/${fecha.month}/${fecha.year}';
 
-  String get horaFormateada {
-    return '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
-  }
+  String get horaFormateada =>
+      '${fecha.hour.toString().padLeft(2, '0')}:${fecha.minute.toString().padLeft(2, '0')}';
 
-  String get fechaHoraCompleta {
-    return '$fechaFormateada $horaFormateada';
-  }
+  String get fechaHoraCompleta => '$fechaFormateada $horaFormateada';
 
   Color get estadoColor {
     switch (estado) {
@@ -94,7 +90,7 @@ class Avance {
         return Icons.schedule;
       case 'CANCELADO':
         return Icons.cancel;
-      default: // REGISTRADO
+      default:
         return Icons.assignment;
     }
   }
@@ -115,18 +111,17 @@ class Avance {
   }
 
   // Validaciones
-  bool get tieneEvidencia => evidenciaFoto != null && evidenciaFoto!.isNotEmpty;
-  bool get tieneDescripcion => descripcion != null && descripcion!.isNotEmpty;
-  bool get tieneHorasTrabajadas => horasTrabajadas != null && horasTrabajadas! > 0;
+  bool get tieneEvidencia =>
+      evidenciaFoto != null && evidenciaFoto!.isNotEmpty;
+  bool get tieneDescripcion =>
+      descripcion != null && descripcion!.isNotEmpty;
+  bool get tieneHorasTrabajadas => horasTrabajadas > 0;
 
-  String get porcentajeTexto {
-    return '${porcentajeEjecutado.toStringAsFixed(1)}%';
-  }
+  String get porcentajeTexto =>
+      '${porcentajeEjecutado.toStringAsFixed(1)}%';
 
-  String? get horasTexto {
-    if (horasTrabajadas == null) return null;
-    return '${horasTrabajadas!.toStringAsFixed(1)} horas';
-  }
+  String? get horasTexto =>
+      horasTrabajadas > 0 ? '${horasTrabajadas.toStringAsFixed(1)} horas' : null;
 
   // Copiar con nuevos valores
   Avance copyWith({

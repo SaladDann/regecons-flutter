@@ -160,4 +160,14 @@ class ObraService {
     // eliminar la obra
     await _obraDao.delete(idObra);
   }
+
+  Future<double> calcularPorcentajeAvance(int idObra) async {
+    await _initialize();
+
+    final actividadService = ActividadService();
+    final resumen = await actividadService.obtenerResumenObra(idObra);
+
+    // devolver porcentaje dinámico
+    return resumen['porcentaje_avance'] as double? ?? 0.0;
+  }
 }

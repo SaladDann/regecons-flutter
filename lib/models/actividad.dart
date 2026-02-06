@@ -5,45 +5,43 @@ class Actividad {
   int idObra;
   String nombre;
   String? descripcion;
-  double pesoPorcentual;
   String estado;
-  double? porcentajeCompletado; // Calculado
+
+  // Solo calculado temporalmente para UI, no persistente
+  double porcentajeCompletado = 0;
 
   Actividad({
     this.idActividad,
     required this.idObra,
     required this.nombre,
     this.descripcion,
-    required this.pesoPorcentual,
     this.estado = 'PENDIENTE',
     this.porcentajeCompletado = 0,
   });
 
-  // Convertir de Map a Actividad
+  // Convertir de Map a Actividad (solo columnas reales de BD)
   factory Actividad.fromMap(Map<String, dynamic> map) {
     return Actividad(
       idActividad: map['id_actividad'],
       idObra: map['id_obra'],
       nombre: map['nombre'],
       descripcion: map['descripcion'],
-      pesoPorcentual: (map['peso_porcentual'] as num).toDouble(),
       estado: map['estado'] ?? 'PENDIENTE',
     );
   }
 
-  // Convertir de Actividad a Map
+  // Convertir de Actividad a Map (solo columnas reales de BD)
   Map<String, dynamic> toMap() {
     return {
       'id_actividad': idActividad,
       'id_obra': idObra,
       'nombre': nombre,
       'descripcion': descripcion,
-      'peso_porcentual': pesoPorcentual,
       'estado': estado,
     };
   }
 
-  // Métodos de utilidad
+  // Métodos de utilidad para UI
   Color get estadoColor {
     switch (estado) {
       case 'COMPLETADA':
@@ -92,22 +90,9 @@ class Actividad {
   // Validaciones
   bool get esCompletada => estado == 'COMPLETADA';
   bool get tieneDescripcion => descripcion != null && descripcion!.isNotEmpty;
-  bool get pesoValido => pesoPorcentual >= 0 && pesoPorcentual <= 100;
-
-  // Para mostrar en UI
-  String get pesoTexto {
-    return '${pesoPorcentual.toStringAsFixed(1)}%';
-  }
 
   String? get porcentajeCompletadoTexto {
-    if (porcentajeCompletado == null) return null;
-    return '${porcentajeCompletado!.toStringAsFixed(1)}% completado';
-  }
-
-  // Calcular contribución al avance total
-  double get contribucionAvance {
-    final porcentaje = porcentajeCompletado ?? 0;
-    return (pesoPorcentual * porcentaje) / 100;
+    return '${porcentajeCompletado.toStringAsFixed(1)}% completado';
   }
 
   // Copiar con nuevos valores
@@ -116,7 +101,6 @@ class Actividad {
     int? idObra,
     String? nombre,
     String? descripcion,
-    double? pesoPorcentual,
     String? estado,
     double? porcentajeCompletado,
   }) {
@@ -125,7 +109,6 @@ class Actividad {
       idObra: idObra ?? this.idObra,
       nombre: nombre ?? this.nombre,
       descripcion: descripcion ?? this.descripcion,
-      pesoPorcentual: pesoPorcentual ?? this.pesoPorcentual,
       estado: estado ?? this.estado,
       porcentajeCompletado: porcentajeCompletado ?? this.porcentajeCompletado,
     );
@@ -137,10 +120,6 @@ class Actividad {
 
     if (nombre.isEmpty) {
       errores.add('El nombre de la actividad es requerido');
-    }
-
-    if (!pesoValido) {
-      errores.add('El peso porcentual debe estar entre 0 y 100');
     }
 
     if (idObra <= 0) {

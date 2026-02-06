@@ -86,7 +86,7 @@ class ObraCard extends StatelessWidget {
                 ],
               ),
 
-              // DESCRIPCIÓN (si existe)
+              // DESCRIPCIÓN
               if (obra.descripcion != null && obra.descripcion!.isNotEmpty)
                 Padding(
                   padding: const EdgeInsets.only(top: 8),
@@ -196,38 +196,31 @@ class ObraCard extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
-                    // BOTÓN EDITAR
                     Expanded(
                       child: _buildActionButton(
                         icon: Icons.edit,
                         label: 'Editar',
-                        color: const Color(0xFFFBC02D), // Amarillo/advertencia
+                        color: const Color(0xFFFBC02D),
                         onPressed: onEditar,
                       ),
                     ),
-
                     const SizedBox(width: 8),
-
-                    // BOTÓN FINALIZAR
                     Expanded(
                       child: _buildActionButton(
                         icon: Icons.check_circle,
                         label: obra.estado == 'FINALIZADA' ? 'Finalizada' : 'Finalizar',
                         color: obra.estado == 'FINALIZADA'
                             ? Colors.green
-                            : const Color(0xFF4CAF50), // Verde/éxito
+                            : const Color(0xFF4CAF50),
                         onPressed: obra.estado == 'FINALIZADA' ? null : onFinalizar,
                       ),
                     ),
-
                     const SizedBox(width: 8),
-
-                    // BOTÓN ELIMINAR
                     Expanded(
                       child: _buildActionButton(
                         icon: Icons.delete,
                         label: 'Borrar',
-                        color: const Color(0xFFF44336), // Rojo/error
+                        color: const Color(0xFFF44336),
                         onPressed: onEliminar,
                       ),
                     ),
@@ -253,7 +246,7 @@ class ObraCard extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           text,
-          style: TextStyle(
+          style: const TextStyle(
             fontSize: 12,
             color: Colors.black54,
           ),
