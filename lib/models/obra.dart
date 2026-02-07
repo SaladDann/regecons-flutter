@@ -22,7 +22,7 @@ class Obra {
     this.fechaFin,
     this.presupuesto,
     required this.estado,
-    this.porcentajeAvance = 0,
+    this.porcentajeAvance = 0.0,
   });
 
   factory Obra.fromMap(Map<String, dynamic> map) {
@@ -38,7 +38,7 @@ class Obra {
       fechaFin: map['fecha_fin'] != null
           ? DateTime.fromMillisecondsSinceEpoch(map['fecha_fin'])
           : null,
-      presupuesto: map['presupuesto'],
+      presupuesto: (map['presupuesto'] as num?)?.toDouble(),
       estado: map['estado'] ?? 'PLANIFICADA',
     );
   }

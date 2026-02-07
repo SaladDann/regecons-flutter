@@ -47,5 +47,9 @@
 		<true/>
 		<key>UIStatusBarHidden</key>
 		<false/>
+		<key>NSCameraUsageDescription</key>
+        <string>Se necesita acceso a la cámara para tomar fotos de evidencias.</string>
+        <key>NSPhotoLibraryUsageDescription</key>
+        <string>Se necesita acceso a la galería para seleccionar fotos de evidencias.</string>
 	</dict>
 </plist>

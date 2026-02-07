@@ -25,6 +25,7 @@ class ActividadService {
     required int idObra,
     required String nombre,
     String? descripcion,
+    required String estado,
   }) async {
     await _initialize();
     final obra = await _obraDao.getById(idObra);
@@ -41,6 +42,7 @@ class ActividadService {
     nuevaActividad.idActividad = id;
     return nuevaActividad;
   }
+
 
   // ACTUALIZAR actividad
   Future<Actividad> actualizarActividad(Actividad actividad) async {
@@ -74,18 +76,13 @@ class ActividadService {
   Future<void> cambiarEstadoActividad(int idActividad, String nuevoEstado) async {
     await _initialize();
 
-    const estadosValidos = ['PENDIENTE', 'EN_PROGRESO', 'COMPLETADA', 'ATRASADA'];
+    // Estados válidos ajustados al modal
+    const estadosValidos = ['PENDIENTE', 'EN_PROGRESO', 'FINALIZADA'];
     if (!estadosValidos.contains(nuevoEstado)) {
       throw Exception('Estado no válido: $nuevoEstado');
     }
 
     await _actividadDao.updateEstado(idActividad, nuevoEstado);
-  }
-
-  // CALCULAR porcentaje de avance de obra (basado en actividades completadas)
-  Future<double> calcularPorcentajeAvanceObra(int idObra) async {
-    await _initialize();
-    return await _actividadDao.calcularPorcentajeAvanceObra(idObra);
   }
 
   // ESTADÍSTICAS por obra
@@ -99,7 +96,6 @@ class ActividadService {
     await _initialize();
 
     final actividades = await obtenerActividadesPorObra(idObra);
-    final porcentajeAvance = await calcularPorcentajeAvanceObra(idObra);
     final estadisticas = await obtenerEstadisticasPorObra(idObra);
 
     // Tomar últimos 5 avances (opcional)
@@ -109,7 +105,6 @@ class ActividadService {
 
     return {
       'actividades': actividades,
-      'porcentaje_avance': porcentajeAvance,
       'estadisticas': estadisticas,
       'ultimos_avances': ultimosAvances,
       'total_actividades': actividades.length,

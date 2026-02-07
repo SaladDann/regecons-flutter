@@ -64,7 +64,7 @@ class ObraDao {
 
     final total = actividades.length;
     final completadas = actividades
-        .where((a) => a['estado'] == 'COMPLETADA')
+        .where((a) => a['estado'] == 'FINALIZADA')
         .length;
 
     return (completadas / total) * 100.0;

@@ -53,67 +53,78 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
     if (widget.onClear != null) {
       widget.onClear!();
     }
+    FocusScope.of(context).unfocus(); // UX: Ocultar teclado al limpiar
   }
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+    return Container(
+      // UX: Sombra más suave y moderna (menos pesada que el Card por defecto)
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.15),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
       ),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.all(16),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            // TÍTULO
-            const Row(
+            // TÍTULO CON ESTILO REFINADO
+            Row(
               children: [
-                Icon(
-                  Icons.search,
-                  color: Colors.orange,
-                  size: 20,
+                Container(
+                  padding: const EdgeInsets.all(6),
+                  decoration: BoxDecoration(
+                    color: Colors.orange.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: const Icon(Icons.manage_search_rounded, color: Colors.orange, size: 22),
                 ),
-                SizedBox(width: 8),
-                Text(
-                  'Búsqueda de Obras',
+                const SizedBox(width: 10),
+                const Text(
+                  'Panel de Filtros',
                   style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.black87,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w800,
+                    color: Color(0xFF181B35),
+                    letterSpacing: 0.5,
                   ),
                 ),
               ],
             ),
 
-            const SizedBox(height: 12),
+            const SizedBox(height: 16),
 
-            // CAMPO DE BÚSQUEDA
+            // CAMPO DE BÚSQUEDA TÁCTIL
             TextField(
               controller: _controller,
               autofocus: widget.autoFocus,
+              style: const TextStyle(fontSize: 15, color: Colors.black87, fontWeight: FontWeight.w500),
               decoration: InputDecoration(
                 hintText: widget.hintText,
-                hintStyle: const TextStyle(color: Colors.grey),
+                hintStyle: TextStyle(color: Colors.grey[400], fontWeight: FontWeight.normal),
                 filled: true,
-                fillColor: Colors.grey[50],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 14,
-                ),
-                prefixIcon: const Icon(Icons.search, color: Colors.grey),
+                fillColor: const Color(0xFFF5F7FA), // Gris muy sutil para profundidad
+                prefixIcon: const Icon(Icons.search, color: Colors.orange, size: 20),
                 suffixIcon: _hasText
                     ? IconButton(
-                  icon: const Icon(Icons.clear, color: Colors.grey),
+                  icon: const Icon(Icons.cancel, color: Colors.grey, size: 20),
                   onPressed: _clearSearch,
                 )
                     : null,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 15),
               ),
-              style: const TextStyle(fontSize: 14),
               onChanged: widget.onSearch,
               onSubmitted: widget.onSearch,
               textInputAction: TextInputAction.search,
@@ -121,49 +132,58 @@ class _SearchBarWidgetState extends State<SearchBarWidget> {
 
             const SizedBox(height: 12),
 
-            // BOTÓN DE BÚSQUEDA
+            // BOTÓN DE BÚSQUEDA INTEGRADO
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton.icon(
-                onPressed: () => widget.onSearch(_controller.text),
+              child: ElevatedButton(
+                onPressed: () {
+                  widget.onSearch(_controller.text);
+                  FocusScope.of(context).unfocus(); // UX: Cerrar teclado al buscar
+                },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.orange,
                   foregroundColor: Colors.white,
+                  elevation: 0,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
+                    borderRadius: BorderRadius.circular(12),
                   ),
-                  elevation: 2,
                 ),
-                icon: const Icon(Icons.search, size: 20),
-                label: const Text(
-                  'BUSCAR',
+                child: const Text(
+                  'APLICAR BÚSQUEDA',
                   style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 14,
+                    fontWeight: FontWeight.w900,
+                    fontSize: 13,
+                    letterSpacing: 1.1,
                   ),
                 ),
               ),
             ),
 
-            // INDICADOR DE RESULTADOS (opcional)
-            if (_hasText)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
+            // INDICADOR DINÁMICO
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              child: _hasText
+                  ? Padding(
+                padding: const EdgeInsets.only(top: 10),
                 child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
+                    Icon(Icons.filter_list_alt, size: 12, color: Colors.grey[500]),
+                    const SizedBox(width: 4),
                     Text(
-                      'Buscando: "${_controller.text}"',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.grey,
-                        fontStyle: FontStyle.italic,
+                      'Filtrando por: "${_controller.text}"',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.grey[600],
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                   ],
                 ),
-              ),
+              )
+                  : const SizedBox.shrink(),
+            ),
           ],
         ),
       ),

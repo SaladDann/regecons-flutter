@@ -1,6 +1,5 @@
 import 'package:regcons/db/app_db.dart';
 import 'package:regcons/services/usuario_obra_service.dart';
-
 import '../db/daos/avance_dao.dart';
 import '../db/daos/obra_dao.dart';
 import '../models/obra.dart';
@@ -19,6 +18,8 @@ class ObraService {
     }
   }
 
+  // --- CRUD BÁSICO ---
+
   Future<int> crearObra(Obra obra) async {
     await _initialize();
     return await _obraDao.insert(obra);
@@ -34,25 +35,30 @@ class ObraService {
     return await _obraDao.delete(idObra);
   }
 
+  // --- CONSULTAS CON CÁLCULO DINÁMICO ---
+
   Future<List<Obra>> obtenerTodasObras() async {
     await _initialize();
-    return await _obraDao.getAll();
+    final obras = await _obraDao.getAll();
+
+    // Inyectamos el porcentaje calculado desde el DAO a cada obra
+    for (var obra in obras) {
+      if (obra.idObra != null) {
+        obra.porcentajeAvance = await _obraDao.calcularPorcentajeAvance(obra.idObra!);
+      }
+    }
+    return obras;
   }
 
   Future<List<Obra>> obtenerObrasActivas() async {
     await _initialize();
     final obras = await _obraDao.getActivas();
 
-    // Calcular porcentaje de avance para cada obra
     for (var obra in obras) {
       if (obra.idObra != null) {
-        final porcentaje = await _obraDao.calcularPorcentajeAvance(
-          obra.idObra!,
-        );
-        obra.porcentajeAvance = porcentaje;
+        obra.porcentajeAvance = await _obraDao.calcularPorcentajeAvance(obra.idObra!);
       }
     }
-
     return obras;
   }
 
@@ -60,12 +66,16 @@ class ObraService {
     await _initialize();
     final obra = await _obraDao.getById(idObra);
     if (obra != null && obra.idObra != null) {
-      final porcentaje = await _obraDao.calcularPorcentajeAvance(obra.idObra!);
-      obra.porcentajeAvance = porcentaje;
+      obra.porcentajeAvance = await _obraDao.calcularPorcentajeAvance(obra.idObra!);
     }
     return obra;
   }
 
+  Future<List<Obra>> obtenerObrasConDetalles() async {
+    return await obtenerTodasObras();
+  }
+
+  // --- ESTADÍSTICAS Y OTROS ---
   Future<List<String>> getEstadosDisponibles() async {
     return ['PLANIFICADA', 'ACTIVA', 'SUSPENDIDA', 'FINALIZADA'];
   }
@@ -82,32 +92,11 @@ class ObraService {
     };
   }
 
-  // OBTENER obras con actividades y avances
-  Future<List<Obra>> obtenerObrasConDetalles() async {
-    await _initialize();
-
-    final obras = await _obraDao.getAll();
-
-    for (var obra in obras) {
-      if (obra.idObra != null) {
-        final actividadesService = ActividadService();
-        final resumen = await actividadesService.obtenerResumenObra(obra.idObra!);
-
-        obra.porcentajeAvance = resumen['porcentaje_avance'] as double;
-      }
-    }
-
-    return obras;
-  }
-
-  // OBTENER obra completa con todas sus relaciones
   Future<Map<String, dynamic>> obtenerObraCompleta(int idObra) async {
     await _initialize();
 
     final obra = await _obraDao.getById(idObra);
-    if (obra == null) {
-      throw Exception('Obra no encontrada');
-    }
+    if (obra == null) throw Exception('Obra no encontrada');
 
     final actividadesService = ActividadService();
     final avancesService = AvanceService();
@@ -116,58 +105,45 @@ class ObraService {
     final resumen = await actividadesService.obtenerResumenObra(idObra);
     final reporteAvances = await avancesService.generarReporteAvances(idObra: idObra);
 
+    double avance = (resumen['porcentaje_avance'] as num?)?.toDouble() ?? 0.0;
+    obra.porcentajeAvance = await _obraDao.calcularPorcentajeAvance(idObra);
+
+
     return {
       'obra': obra,
       'actividades': actividades,
       'resumen': resumen,
       'reporte_avances': reporteAvances,
-      'porcentaje_avance': resumen['porcentaje_avance'],
+      'porcentaje_avance': obra.porcentajeAvance,
       'total_actividades': actividades.length,
     };
   }
 
-  // ELIMINAR obra con todas sus relaciones
   Future<void> eliminarObraCompleta(int idObra) async {
     await _initialize();
-
-    // Obtener todas las actividades de la obra
     final actividadService = ActividadService();
     final actividades = await actividadService.obtenerActividadesPorObra(idObra);
 
-    // Para cada actividad, eliminar sus avances primero
     for (var actividad in actividades) {
       if (actividad.idActividad != null) {
         final avanceDao = AvanceDao(await AppDatabase().database);
         await avanceDao.deleteByActividad(actividad.idActividad!);
-      }
-    }
-
-    // Eliminar todas las actividades
-    for (var actividad in actividades) {
-      if (actividad.idActividad != null) {
         await actividadService.eliminarActividad(actividad.idActividad!);
       }
     }
 
-    // Eliminar relaciones usuario_obra si existen
     try {
       final usuarioObraService = UsuarioObraService();
       await usuarioObraService.eliminarTodosUsuariosDeObra(idObra);
-    } catch (_) {
+    } catch (_) {}
 
-    }
-
-    // eliminar la obra
     await _obraDao.delete(idObra);
   }
 
+  // Método unificado para calcular el avance
   Future<double> calcularPorcentajeAvance(int idObra) async {
     await _initialize();
-
-    final actividadService = ActividadService();
-    final resumen = await actividadService.obtenerResumenObra(idObra);
-
-    // devolver porcentaje dinámico
-    return resumen['porcentaje_avance'] as double? ?? 0.0;
+    // Usamos el DAO directamente, es más rápido y menos propenso a errores de nulos
+    return await _obraDao.calcularPorcentajeAvance(idObra);
   }
 }

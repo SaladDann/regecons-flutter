@@ -173,18 +173,5 @@ class ActividadDao {
     };
   }
 
-  // CALCULAR porcentaje de avance total de una obra
-  Future<double> calcularPorcentajeAvanceObra(int idObra) async {
-    final actividades = await getByObra(idObra);
-
-    if (actividades.isEmpty) return 0.0;
-
-    final total = actividades.length;
-    final completadas =
-        actividades.where((a) => a.estado == 'COMPLETADA').length;
-
-    return (completadas / total) * 100.0;
-  }
-
 }
 

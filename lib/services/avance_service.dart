@@ -21,10 +21,9 @@ class AvanceService {
   // CREAR un nuevo avance
   Future<Avance> crearAvance({
     required int idActividad,
-    required int idUsuario,
+    required int idObra,
     required DateTime fecha,
-    required double porcentajeEjecutado,
-    required double horasTrabajadas,
+    double? horasTrabajadas,
     String? descripcion,
     String? evidenciaFoto,
     String estado = 'REGISTRADO',
@@ -32,17 +31,19 @@ class AvanceService {
     await _initialize();
 
     final actividad = await _actividadDao.getById(idActividad);
-    if (actividad == null) throw Exception('La actividad no existe');
+    if (actividad == null) {
+      throw Exception('La actividad no existe');
+    }
 
     final nuevoAvance = Avance(
       idActividad: idActividad,
-      idUsuario: idUsuario,
+      idObra: idObra,
       fecha: fecha,
-      porcentajeEjecutado: porcentajeEjecutado,
-      horasTrabajadas: horasTrabajadas, // puede ser null si no se pasa
+      horasTrabajadas: horasTrabajadas,
       descripcion: descripcion,
       evidenciaFoto: evidenciaFoto,
       estado: estado,
+      sincronizado: 0,
     );
 
     final id = await _avanceDao.insert(nuevoAvance);
@@ -50,6 +51,7 @@ class AvanceService {
 
     return nuevoAvance;
   }
+
 
   // ACTUALIZAR un avance existente
   Future<Avance> actualizarAvance(Avance avance) async {
@@ -73,11 +75,6 @@ class AvanceService {
     return await _avanceDao.getByActividad(idActividad);
   }
 
-  // OBTENER avances por usuario
-  Future<List<Avance>> obtenerAvancesPorUsuario(int idUsuario) async {
-    await _initialize();
-    return await _avanceDao.getByUsuario(idUsuario);
-  }
 
   // OBTENER avances por obra
   Future<List<Avance>> obtenerAvancesPorObra(int idObra) async {
@@ -105,22 +102,16 @@ class AvanceService {
     await _avanceDao.updateEstado(idAvance, nuevoEstado);
   }
 
-  // CALCULAR porcentaje promedio de avance por actividad
-  Future<double> calcularPromedioPorActividad(int idActividad) async {
-    await _initialize();
-    return await _avanceDao.calcularPromedioPorActividad(idActividad);
-  }
-
   // CONTAR avances por actividad
   Future<int> contarAvancesPorActividad(int idActividad) async {
     await _initialize();
     return await _avanceDao.countByActividad(idActividad);
   }
 
-  // CONTAR avances por usuario
-  Future<int> contarAvancesPorUsuario(int idUsuario) async {
+  // CONTAR avances por obra
+  Future<int> contarAvancesPorObra(int idObra) async {
     await _initialize();
-    return await _avanceDao.countByUsuario(idUsuario);
+    return await _avanceDao.countByObra(idObra);
   }
 
   // SUMAR horas trabajadas por actividad
@@ -155,8 +146,6 @@ class AvanceService {
     if (actividad == null) throw Exception('La actividad no existe');
 
     final avances = await _avanceDao.getByActividad(idActividad);
-    final promedio = await _avanceDao.calcularPromedioPorActividad(idActividad);
-    actividad.porcentajeCompletado = promedio;
 
     final totalHoras = avances.fold<double>(
       0,
@@ -166,7 +155,6 @@ class AvanceService {
     return {
       'actividad': actividad,
       'avances': avances,
-      'porcentaje_completado': promedio,
       'total_avances': avances.length,
       'total_horas': totalHoras,
     };
@@ -175,7 +163,6 @@ class AvanceService {
   // GENERAR reporte de avances
   Future<Map<String, dynamic>> generarReporteAvances({
     int? idObra,
-    int? idUsuario,
     DateTime? fechaInicio,
     DateTime? fechaFin,
   }) async {
@@ -185,37 +172,27 @@ class AvanceService {
 
     if (idObra != null) {
       avances = await _avanceDao.getByObra(idObra);
-    } else if (idUsuario != null) {
-      avances = await _avanceDao.getByUsuario(idUsuario);
     } else if (fechaInicio != null && fechaFin != null) {
       avances = await _avanceDao.getByFechaRange(fechaInicio, fechaFin);
     } else {
       avances = await _avanceDao.getAll();
     }
 
-    // Calcular estadísticas del reporte
-    double totalHoras = 0;
-    double porcentajePromedio = 0;
-
-    for (var avance in avances) {
-      totalHoras += avance.horasTrabajadas ?? 0;
-      porcentajePromedio += avance.porcentajeEjecutado;
-    }
-
-    if (avances.isNotEmpty) {
-      porcentajePromedio /= avances.length;
-    }
+    double totalHoras = avances.fold(
+      0,
+          (sum, a) => sum + (a.horasTrabajadas ?? 0),
+    );
 
     return {
       'total_avances': avances.length,
       'total_horas': totalHoras,
-      'porcentaje_promedio': porcentajePromedio,
       'periodo': fechaInicio != null && fechaFin != null
           ? '${fechaInicio.toIso8601String()} - ${fechaFin.toIso8601String()}'
           : 'Todos',
       'avances': avances,
     };
   }
+
 }
 
 

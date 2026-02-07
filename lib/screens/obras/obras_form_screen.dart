@@ -51,26 +51,44 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
     super.dispose();
   }
 
-  // --- LÓGICA DE DIÁLOGOS Y GUARDADO ---
+  // --- MEJORA UX: Notificaciones estandarizadas ---
+  void _notificar(String msj, {bool error = false}) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(msj, style: const TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: error ? Colors.redAccent : Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        margin: const EdgeInsets.all(20),
+      ),
+    );
+  }
 
   void _mostrarConfirmacionCancelar() {
+    // Si no hay cambios, salimos directamente (Mejora UX: ahorro de clics)
+    if (!_hayCambios()) {
+      Navigator.pop(context);
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: const Color(0xFF181B35),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: const Text('¿Descartar cambios?', style: TextStyle(color: Colors.white)),
-        content: const Text('Los datos no guardados se perderán.', style: TextStyle(color: Colors.white70)),
+        content: const Text('Tienes cambios sin guardar que se perderán.', style: TextStyle(color: Colors.white70)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('CONTINUAR EDITANDO', style: TextStyle(color: Colors.orange)),
+            child: const Text('SEGUIR EDITANDO', style: TextStyle(color: Colors.orange)),
           ),
           ElevatedButton(
             onPressed: () {
-              Navigator.pop(context); // Cierra el diálogo
-              Navigator.pop(context); // Sale de la pantalla
+              Navigator.pop(context); // Cierra diálogo
+              Navigator.pop(context); // Sale de pantalla
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.redAccent),
             child: const Text('DESCARTAR', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -78,18 +96,24 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
     );
   }
 
+  bool _hayCambios() {
+    final o = widget.obra;
+    if (nombreCtrl.text != (o?.nombre ?? '')) return true;
+    if (descripcionCtrl.text != (o?.descripcion ?? '')) return true;
+    if (estado != (o?.estado ?? 'PLANIFICADA')) return true;
+    return false; // Simplificado para el ejemplo
+  }
+
   Future<void> _guardar() async {
     if (!_formKey.currentState!.validate()) return;
 
-    // Validación lógica de fechas
     if (fechaInicio != null && fechaFin != null && fechaFin!.isBefore(fechaInicio!)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('La fecha fin no puede ser anterior a la de inicio'), backgroundColor: Colors.red),
-      );
+      _notificar('La fecha fin no puede ser anterior al inicio', error: true);
       return;
     }
 
     setState(() => _guardando = true);
+
     final obra = Obra(
       idObra: widget.obra?.idObra,
       nombre: nombreCtrl.text.trim(),
@@ -107,20 +131,12 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
       esEdicion ? await _obraService.actualizarObra(obra) : await _obraService.crearObra(obra);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(esEdicion ? 'Obra actualizada correctamente' : 'Obra registrada correctamente'),
-            backgroundColor: Colors.green,
-          ),
-        );
-        // NOTA: No cerramos la pantalla (Navigator.pop) para que el usuario decida cuándo salir
+        _notificar(esEdicion ? 'Obra actualizada' : 'Obra registrada');
+        // MEJORA UX: Cerramos automáticamente al tener éxito
+        Navigator.pop(context, true);
       }
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error al guardar: $e'), backgroundColor: Colors.red),
-        );
-      }
+      if (mounted) _notificar('Error: $e', error: true);
     } finally {
       if (mounted) setState(() => _guardando = false);
     }
@@ -129,12 +145,16 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
   Future<void> _pickFecha(bool inicio) async {
     final picked = await showDatePicker(
       context: context,
-      initialDate: DateTime.now(),
+      initialDate: (inicio ? fechaInicio : fechaFin) ?? DateTime.now(),
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
       builder: (context, child) => Theme(
         data: ThemeData.dark().copyWith(
-          colorScheme: const ColorScheme.dark(primary: Colors.orange, onPrimary: Colors.white, surface: Color(0xFF181B35)),
+          colorScheme: const ColorScheme.dark(
+              primary: Colors.orange,
+              onPrimary: Colors.white,
+              surface: Color(0xFF181B35)
+          ),
         ),
         child: child!,
       ),
@@ -147,35 +167,38 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
     return Scaffold(
       extendBodyBehindAppBar: true,
       appBar: AppBar(
-        backgroundColor: const Color(0xFF181B35).withOpacity(0.8),
+        backgroundColor: const Color(0xFF181B35).withOpacity(0.9),
         elevation: 0,
+        centerTitle: true,
         foregroundColor: Colors.white,
-        title: Text(esEdicion ? 'Editar Obra' : 'Nueva Obra'),
+        title: Text(esEdicion ? 'Editar Obra' : 'Nueva Obra',
+            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: const Icon(Icons.close), // UX: Icono X para cerrar formularios
           onPressed: _mostrarConfirmacionCancelar,
         ),
       ),
       body: Stack(
         children: [
-          Positioned.fill(
-            child: Image.asset('assets/images/login_bg.png', fit: BoxFit.cover),
-          ),
-          Positioned.fill(
-            child: Container(color: Colors.black.withOpacity(0.55)),
-          ),
+          Positioned.fill(child: Image.asset('assets/images/login_bg.png', fit: BoxFit.cover)),
+          Positioned.fill(child: Container(color: Colors.black.withOpacity(0.65))),
           SafeArea(
             child: Form(
               key: _formKey,
               child: ListView(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
                 children: [
-                  _input(nombreCtrl, 'Nombre de la Obra', requerido: true),
-                  _input(descripcionCtrl, 'Descripción', multilinea: true),
-                  _input(clienteCtrl, 'Cliente'),
-                  _input(direccionCtrl, 'Dirección'),
-                  _input(presupuestoCtrl, 'Presupuesto', numero: true),
-                  const SizedBox(height: 12),
+                  _seccionTitulo('Información General'),
+                  _input(nombreCtrl, 'Nombre de la Obra', icon: Icons.business, requerido: true),
+                  _input(descripcionCtrl, 'Descripción', icon: Icons.notes, multilinea: true),
+
+                  _seccionTitulo('Detalles de Contacto'),
+                  _input(clienteCtrl, 'Cliente', icon: Icons.person_outline),
+                  _input(direccionCtrl, 'Dirección', icon: Icons.location_on_outlined),
+
+                  _seccionTitulo('Presupuesto y Tiempos'),
+                  _input(presupuestoCtrl, 'Presupuesto total', icon: Icons.monetization_on_outlined, numero: true),
+
                   Row(
                     children: [
                       _fechaBtn('Inicio', fechaInicio, () => _pickFecha(true), Icons.calendar_today),
@@ -188,16 +211,12 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
                     value: estado,
                     dropdownColor: const Color(0xFF181B35),
                     style: const TextStyle(color: Colors.white),
-                    items: const [
-                      DropdownMenuItem(value: 'PLANIFICADA', child: Text('PLANIFICADA')),
-                      DropdownMenuItem(value: 'ACTIVA', child: Text('ACTIVA')),
-                      DropdownMenuItem(value: 'SUSPENDIDA', child: Text('SUSPENDIDA')),
-                      DropdownMenuItem(value: 'FINALIZADA', child: Text('FINALIZADA')),
-                    ],
                     onChanged: (v) => setState(() => estado = v!),
-                    decoration: _decor('Estado'),
+                    decoration: _decor('Estado', Icons.info_outline),
+                    items: ['PLANIFICADA', 'ACTIVA', 'SUSPENDIDA', 'FINALIZADA']
+                        .map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
                   ),
-                  const SizedBox(height: 30),
+                  const SizedBox(height: 40),
                   _buildActions(),
                 ],
               ),
@@ -208,42 +227,44 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
     );
   }
 
-  // --- WIDGETS DE ESTILO ---
+  Widget _seccionTitulo(String titulo) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10, bottom: 12, left: 4),
+      child: Text(titulo.toUpperCase(),
+          style: const TextStyle(color: Colors.orange, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
+    );
+  }
 
   Widget _buildActions() {
-    return Row(
+    return Column(
       children: [
-        Expanded(
-          child: OutlinedButton(
-            onPressed: _mostrarConfirmacionCancelar,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.white,
-              side: const BorderSide(color: Colors.white70),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: Colors.black26,
-            ),
-            child: const Text('CANCELAR', style: TextStyle(fontWeight: FontWeight.bold)),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
+        SizedBox(
+          width: double.infinity,
           child: ElevatedButton(
             onPressed: _guardando ? null : _guardar,
             style: ElevatedButton.styleFrom(
               backgroundColor: Colors.orange,
               foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 16),
+              padding: const EdgeInsets.symmetric(vertical: 18),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 4,
             ),
             child: _guardando
                 ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                : Text(esEdicion ? 'ACTUALIZAR' : 'REGISTRAR', style: const TextStyle(fontWeight: FontWeight.bold)),
+                : Text(esEdicion ? 'GUARDAR CAMBIOS' : 'REGISTRAR OBRA',
+                style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1)),
           ),
+        ),
+        const SizedBox(height: 12),
+        TextButton(
+          onPressed: _mostrarConfirmacionCancelar,
+          child: const Text('CANCELAR', style: TextStyle(color: Colors.white54, fontWeight: FontWeight.bold)),
         ),
       ],
     );
   }
 
-  Widget _input(TextEditingController c, String label, {bool requerido = false, bool multilinea = false, bool numero = false}) {
+  Widget _input(TextEditingController c, String label, {required IconData icon, bool requerido = false, bool multilinea = false, bool numero = false}) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 16),
       child: TextFormField(
@@ -251,26 +272,29 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
         maxLines: multilinea ? 3 : 1,
         keyboardType: numero ? TextInputType.number : TextInputType.text,
         style: const TextStyle(color: Colors.white),
-        validator: requerido ? (v) => v == null || v.isEmpty ? 'Requerido' : null : null,
-        decoration: _decor(label).copyWith(
-          prefixIcon: numero ? const Icon(Icons.attach_money, color: Colors.greenAccent) : null,
-        ),
+        validator: requerido ? (v) => v == null || v.isEmpty ? 'Campo requerido' : null : null,
+        decoration: _decor(label, icon),
       ),
     );
   }
 
-  InputDecoration _decor(String label) => InputDecoration(
+  InputDecoration _decor(String label, IconData icon) => InputDecoration(
     labelText: label,
-    labelStyle: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+    prefixIcon: Icon(icon, color: Colors.orange, size: 20),
+    labelStyle: const TextStyle(color: Colors.white60, fontSize: 14),
     filled: true,
-    fillColor: const Color(0xFF181B35).withOpacity(0.7),
+    fillColor: const Color(0xFF181B35).withOpacity(0.6),
     enabledBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
-      borderSide: const BorderSide(color: Colors.white30),
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Colors.white10),
     ),
     focusedBorder: OutlineInputBorder(
-      borderRadius: BorderRadius.circular(10),
+      borderRadius: BorderRadius.circular(12),
       borderSide: const BorderSide(color: Colors.orange, width: 2),
+    ),
+    errorBorder: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(12),
+      borderSide: const BorderSide(color: Colors.redAccent),
     ),
   );
 
@@ -278,21 +302,22 @@ class _ObraFormScreenState extends State<ObraFormScreen> {
     return Expanded(
       child: InkWell(
         onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 12),
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 12),
           decoration: BoxDecoration(
-            color: const Color(0xFF181B35).withOpacity(0.7),
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: Colors.white30),
+            color: const Color(0xFF181B35).withOpacity(0.6),
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.white10),
           ),
           child: Row(
             children: [
-              Icon(icon, color: Colors.orange, size: 20),
-              const SizedBox(width: 8),
-              Expanded(
+              Icon(icon, color: Colors.orange, size: 18),
+              const SizedBox(width: 10),
+              Flexible(
                 child: Text(
                   fecha == null ? label : "${fecha.day}/${fecha.month}/${fecha.year}",
-                  style: const TextStyle(color: Colors.white, fontSize: 13),
+                  style: TextStyle(color: fecha == null ? Colors.white60 : Colors.white, fontSize: 13),
                   overflow: TextOverflow.ellipsis,
                 ),
               ),

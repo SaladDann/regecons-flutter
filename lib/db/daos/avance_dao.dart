@@ -63,29 +63,17 @@ class AvanceDao {
     return List.generate(maps.length, (i) => Avance.fromMap(maps[i]));
   }
 
-  // OBTENER avances por usuario
-  Future<List<Avance>> getByUsuario(int idUsuario) async {
+  // OBTENER avances por obra
+  Future<List<Avance>> getByObra(int idObra) async {
     final List<Map<String, dynamic>> maps = await db.query(
       'avances',
-      where: 'id_usuario = ?',
-      whereArgs: [idUsuario],
+      where: 'id_obra = ?',
+      whereArgs: [idObra],
       orderBy: 'fecha DESC',
     );
     return List.generate(maps.length, (i) => Avance.fromMap(maps[i]));
   }
 
-  // OBTENER avances por obra (a través de actividades)
-  Future<List<Avance>> getByObra(int idObra) async {
-    final List<Map<String, dynamic>> maps = await db.rawQuery('''
-      SELECT a.* 
-      FROM avances a
-      INNER JOIN actividades act ON a.id_actividad = act.id_actividad
-      WHERE act.id_obra = ?
-      ORDER BY a.fecha DESC
-    ''', [idObra]);
-
-    return List.generate(maps.length, (i) => Avance.fromMap(maps[i]));
-  }
 
   // OBTENER avances por rango de fechas
   Future<List<Avance>> getByFechaRange(DateTime start, DateTime end) async {
@@ -121,14 +109,15 @@ class AvanceDao {
     return Sqflite.firstIntValue(result) ?? 0;
   }
 
-  // CONTAR avances por usuario
-  Future<int> countByUsuario(int idUsuario) async {
+  // CONTAR avances por obra
+  Future<int> countByObra(int idObra) async {
     final result = await db.rawQuery(
-      'SELECT COUNT(*) FROM avances WHERE id_usuario = ?',
-      [idUsuario],
+      'SELECT COUNT(*) FROM avances WHERE id_obra = ?',
+      [idObra],
     );
     return Sqflite.firstIntValue(result) ?? 0;
   }
+
 
   // CONTAR total de horas trabajadas por actividad
   Future<double> sumHorasByActividad(int idActividad) async {
@@ -216,27 +205,4 @@ class AvanceDao {
     };
   }
 
-  Future<double> calcularPromedioPorActividad(int idActividad) async {
-
-    final result = await db.rawQuery(
-      'SELECT estado FROM actividades WHERE id_actividad = ?',
-      [idActividad],
-    );
-
-    if (result.isEmpty) return 0.0;
-
-    return result.first['estado'] == 'COMPLETADA' ? 100.0 : 0.0;
-  }
-
-  Future<double> calcularPorcentajeAvanceObra(int idObra) async {
-    // Obtener todas las actividades de la obra
-    final actividades = await getByObra(idObra);
-    if (actividades.isEmpty) return 0.0;
-
-    // Contar cuántas están finalizadas
-    final completadas = actividades.where((a) => a.estado == 'COMPLETADA').length;
-
-    // Calcular porcentaje
-    return (completadas / actividades.length) * 100.0;
-  }
 }

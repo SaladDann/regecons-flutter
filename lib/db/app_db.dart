@@ -12,6 +12,11 @@ class AppDatabase {
 
   static Database? _database;
 
+  // CONSTANTES DE ESTADO
+  static const String estadoActivo = 'ACTIVO';
+  static const String estadoInactivo = 'INACTIVO';
+  static const String estadoBloqueado = 'BLOQUEADO';
+
   // TABLAS
   static const String _tablaRoles = '''
   CREATE TABLE roles (
@@ -78,7 +83,7 @@ class AppDatabase {
   );
   ''';
 
-  // ================= ACTIVIDADES =================
+  // ACTIVIDADES
   static const String _tablaActividades = '''
   CREATE TABLE actividades (
     id_actividad INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -90,12 +95,12 @@ class AppDatabase {
   );
   ''';
 
-  // ================= AVANCES =================
+  // AVANCES
   static const String _tablaAvances = '''
   CREATE TABLE avances (
     id_avance INTEGER PRIMARY KEY AUTOINCREMENT,
     id_actividad INTEGER NOT NULL,
-    id_usuario INTEGER NOT NULL,
+    id_obra INTEGER NOT NULL,
     fecha INTEGER NOT NULL,
     horas_trabajadas REAL,
     descripcion TEXT,
@@ -103,7 +108,7 @@ class AppDatabase {
     estado TEXT DEFAULT 'REGISTRADO',
     sincronizado INTEGER DEFAULT 0,
     FOREIGN KEY (id_actividad) REFERENCES actividades(id_actividad),
-    FOREIGN KEY (id_usuario) REFERENCES usuarios(id_usuario)
+    FOREIGN KEY (id_obra) REFERENCES obras(id_obra)
   );
   ''';
 
@@ -124,7 +129,7 @@ class AppDatabase {
   );
   ''';
 
-  // ================= BASE DE DATOS =================
+  // BASE DE DATOS
   Future<Database> get database async {
     if (_database != null) return _database!;
     _database = await _initDB();
@@ -132,77 +137,106 @@ class AppDatabase {
   }
 
   Future<Database> _initDB() async {
-    final path = join(await getDatabasesPath(), 'regcons_flutter.db');
-    return await openDatabase(
-      path,
-      version: 1,
-      onConfigure: _onConfigure,
-      onCreate: _onCreate,
-      onUpgrade: _onUpgrade,
-    );
+    try {
+      final path = join(await getDatabasesPath(), 'regcons_flutter.db');
+      return await openDatabase(
+        path,
+        version: 1,
+        onConfigure: _onConfigure,
+        onCreate: _onCreate,
+      );
+    } catch (e) {
+      print('Error al inicializar la base de datos: $e');
+      rethrow;
+    }
   }
 
   Future<void> _onConfigure(Database db) async {
-    await db.execute('PRAGMA foreign_keys = ON');
+    try {
+      await db.execute('PRAGMA foreign_keys = ON');
+    } catch (e) {
+      print('Error al configurar PRAGMA: $e');
+      rethrow;
+    }
   }
 
   Future<void> _onCreate(Database db, int version) async {
-    await db.execute(_tablaRoles);
-    await db.execute(_tablaUsuarios);
-    await db.execute(_tablaSesiones);
-    await db.execute(_tablaObras);
-    await db.execute(_tablaUsuarioObra);
-    await db.execute(_tablaActividades);
-    await db.execute(_tablaAvances);
-    await db.execute(_tablaReportesSeguridad);
+    try {
+      // Crear tablas
+      await db.execute(_tablaRoles);
+      await db.execute(_tablaUsuarios);
+      await db.execute(_tablaSesiones);
+      await db.execute(_tablaObras);
+      await db.execute(_tablaUsuarioObra);
+      await db.execute(_tablaActividades);
+      await db.execute(_tablaAvances);
+      await db.execute(_tablaReportesSeguridad);
 
-    // Índices
-    await db.execute('CREATE INDEX idx_usuarios_rol ON usuarios(id_rol);');
-    await db.execute('CREATE INDEX idx_usuarios_username ON usuarios(username);');
-    await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email);');
-    await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(id_usuario);');
-    await db.execute('CREATE INDEX idx_actividades_obra ON actividades(id_obra);');
-    await db.execute('CREATE INDEX idx_avances_actividad ON avances(id_actividad);');
-    await db.execute('CREATE INDEX idx_avances_usuario ON avances(id_usuario);');
-    await db.execute('CREATE INDEX idx_reportes_obra ON reportes_seguridad(id_obra);');
+      // Índices
+      await db.execute('CREATE INDEX idx_usuarios_rol ON usuarios(id_rol);');
+      await db.execute('CREATE INDEX idx_usuarios_username ON usuarios(username);');
+      await db.execute('CREATE INDEX idx_usuarios_email ON usuarios(email);');
+      await db.execute('CREATE INDEX idx_sesiones_usuario ON sesiones(id_usuario);');
+      await db.execute('CREATE INDEX idx_sesiones_token ON sesiones(token);');
+      await db.execute('CREATE INDEX idx_actividades_obra ON actividades(id_obra);');
+      await db.execute('CREATE INDEX idx_avances_actividad ON avances(id_actividad);');
+      await db.execute('CREATE INDEX idx_avances_obra ON avances(id_obra);');
+      await db.execute('CREATE INDEX idx_reportes_obra ON reportes_seguridad(id_obra);');
 
-    await _insertarRolesIniciales(db);
-    await _insertarUsuarioAdmin(db);
+      await _insertarRolesIniciales(db);
+      await _insertarUsuarioAdmin(db);
+
+      print('Base de datos creada exitosamente');
+    } catch (e) {
+      print('Error al crear la base de datos: $e');
+      rethrow;
+    }
   }
 
-  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {}
 
   // DATOS INICIALES
   Future<void> _insertarRolesIniciales(Database db) async {
-    final count = await db.rawQuery('SELECT COUNT(*) FROM roles');
-    final rowCount = Sqflite.firstIntValue(count) ?? 0;
-    if (rowCount == 0) {
-      await db.insert('roles', {'nombre': 'ADMIN', 'descripcion': 'Administrador'});
-      await db.insert('roles', {'nombre': 'SUPERVISOR', 'descripcion': 'Supervisor de obra'});
-      await db.insert('roles', {'nombre': 'OPERARIO', 'descripcion': 'Operario'});
+    try {
+      final count = await db.rawQuery('SELECT COUNT(*) FROM roles');
+      final rowCount = Sqflite.firstIntValue(count) ?? 0;
+      if (rowCount == 0) {
+        await db.insert('roles', {'nombre': 'ADMIN', 'descripcion': 'Administrador'});
+        await db.insert('roles', {'nombre': 'SUPERVISOR', 'descripcion': 'Supervisor de obra'});
+        await db.insert('roles', {'nombre': 'OPERARIO', 'descripcion': 'Operario'});
+        print('Roles iniciales insertados');
+      }
+    } catch (e) {
+      print('Error al insertar roles iniciales: $e');
+      rethrow;
     }
   }
 
   Future<void> _insertarUsuarioAdmin(Database db) async {
-    final count = await db.rawQuery('SELECT COUNT(*) FROM usuarios WHERE username = ?', ['admin']);
-    if ((Sqflite.firstIntValue(count) ?? 0) == 0) {
-      final rol = await db.query('roles', where: 'nombre = ?', whereArgs: ['ADMIN']);
-      if (rol.isEmpty) return;
+    try {
+      final count = await db.rawQuery('SELECT COUNT(*) FROM usuarios WHERE username = ?', ['admin']);
+      if ((Sqflite.firstIntValue(count) ?? 0) == 0) {
+        final rol = await db.query('roles', where: 'nombre = ?', whereArgs: ['ADMIN']);
+        if (rol.isEmpty) return;
 
-      final salt = _generateSalt();
-      final hash = _hashPassword('admin123', salt);
+        final salt = _generateSalt();
+        final hash = _hashPassword('admin123', salt);
 
-      await db.insert('usuarios', {
-        'username': 'admin',
-        'email': 'admin@regcons.com',
-        'nombre_completo': 'Administrador del Sistema',
-        'password_hash': hash,
-        'password_salt': salt,
-        'acepta_terminos': 1,
-        'estado': 'ACTIVO',
-        'fecha_creacion': DateTime.now().millisecondsSinceEpoch,
-        'id_rol': rol.first['id_rol'],
-      });
+        await db.insert('usuarios', {
+          'username': 'admin',
+          'email': 'admin@regcons.com',
+          'nombre_completo': 'Administrador del Sistema',
+          'password_hash': hash,
+          'password_salt': salt,
+          'acepta_terminos': 1,
+          'estado': estadoActivo,
+          'fecha_creacion': DateTime.now().millisecondsSinceEpoch,
+          'id_rol': rol.first['id_rol'],
+        });
+        print('Usuario admin creado');
+      }
+    } catch (e) {
+      print('Error al insertar usuario admin: $e');
+      rethrow;
     }
   }
 
@@ -217,4 +251,100 @@ class AppDatabase {
     final bytes = utf8.encode(password + salt);
     return sha256.convert(bytes).toString();
   }
+
+  /// Verifica si una contraseña coincide con el hash almacenado
+  Future<bool> verificarPassword(String password, String hash, String salt) async {
+    try {
+      final computedHash = _hashPassword(password, salt);
+      return computedHash == hash;
+    } catch (e) {
+      print('Error al verificar contraseña: $e');
+      return false;
+    }
+  }
+
+  // VALIDACIONES
+  bool validarEmail(String email) {
+    final emailRegex = RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$');
+    return emailRegex.hasMatch(email);
+  }
+
+  bool validarPassword(String password) {
+    return password.length >= 6;
+  }
+
+  bool validarUsername(String username) {
+    final usernameRegex = RegExp(r'^[a-zA-Z0-9_]{3,}$');
+    return usernameRegex.hasMatch(username);
+  }
+
+  // GESTIÓN DE SESIONES
+  /// Limpia todas las sesiones expiradas de la base de datos
+  Future<int> limpiarSesionesExpiradas() async {
+    try {
+      final db = await database;
+      final ahora = DateTime.now().millisecondsSinceEpoch;
+      final count = await db.delete(
+        'sesiones',
+        where: 'fecha_expiracion < ?',
+        whereArgs: [ahora],
+      );
+      print('$count sesiones expiradas eliminadas');
+      return count;
+    } catch (e) {
+      print('Error al limpiar sesiones expiradas: $e');
+      return 0;
+    }
+  }
+
+  /// Invalida una sesión específica por token
+  Future<bool> invalidarSesion(String token) async {
+    try {
+      final db = await database;
+      final count = await db.update(
+        'sesiones',
+        {'activa': 0},
+        where: 'token = ?',
+        whereArgs: [token],
+      );
+      return count > 0;
+    } catch (e) {
+      print('Error al invalidar sesión: $e');
+      return false;
+    }
+  }
+
+  /// Invalida todas las sesiones de un usuario
+  Future<int> invalidarSesionesUsuario(int idUsuario) async {
+    try {
+      final db = await database;
+      final count = await db.update(
+        'sesiones',
+        {'activa': 0},
+        where: 'id_usuario = ?',
+        whereArgs: [idUsuario],
+      );
+      print('$count sesiones invalidadas para usuario $idUsuario');
+      return count;
+    } catch (e) {
+      print('Error al invalidar sesiones del usuario: $e');
+      return 0;
+    }
+  }
+
+  // GESTIÓN DE BASE DE DATOS
+  /// Cierra la conexión a la base de datos
+  Future<void> close() async {
+    try {
+      if (_database != null) {
+        await _database!.close();
+        _database = null;
+        print('Base de datos cerrada correctamente');
+      }
+    } catch (e) {
+      print('Error al cerrar la base de datos: $e');
+      rethrow;
+    }
+  }
+
 }

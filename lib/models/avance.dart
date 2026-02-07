@@ -1,62 +1,68 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 class Avance {
   int? idAvance;
+  int idObra;
   int idActividad;
-  int idUsuario;
   DateTime fecha;
-  double horasTrabajadas;
+  double? horasTrabajadas;
   String? descripcion;
   String? evidenciaFoto;
   String estado;
+  int sincronizado;
 
-  // Solo para UI, no persistente
-  double porcentajeEjecutado = 0;
+  // Solo para UI (no persistente)
+  double porcentajeEjecutado;
 
   Avance({
     this.idAvance,
+    required this.idObra,
     required this.idActividad,
-    required this.idUsuario,
     required this.fecha,
-    this.porcentajeEjecutado = 0,
     this.horasTrabajadas = 0,
     this.descripcion,
     this.evidenciaFoto,
     this.estado = 'REGISTRADO',
+    this.sincronizado = 0,
+    this.porcentajeEjecutado = 0,
   });
 
-  // Convertir de Map a Avance (solo columnas reales de BD)
+  // ======================
+  // MAP <-> MODELO
+  // ======================
+
   factory Avance.fromMap(Map<String, dynamic> map) {
     return Avance(
       idAvance: map['id_avance'],
+      idObra: map['id_obra'],
       idActividad: map['id_actividad'],
-      idUsuario: map['id_usuario'],
       fecha: DateTime.fromMillisecondsSinceEpoch(map['fecha']),
-      horasTrabajadas: map['horas_trabajadas'] != null
-          ? (map['horas_trabajadas'] as num).toDouble()
-          : 0,
+      horasTrabajadas: (map['horas_trabajadas'] as num?)?.toDouble() ?? 0,
       descripcion: map['descripcion'],
       evidenciaFoto: map['evidencia_foto'],
       estado: map['estado'] ?? 'REGISTRADO',
+      sincronizado: map['sincronizado'] ?? 0,
     );
   }
 
-  // Convertir de Avance a Map (solo columnas reales de BD)
   Map<String, dynamic> toMap() {
     return {
       'id_avance': idAvance,
+      'id_obra': idObra,
       'id_actividad': idActividad,
-      'id_usuario': idUsuario,
       'fecha': fecha.millisecondsSinceEpoch,
       'horas_trabajadas': horasTrabajadas,
       'descripcion': descripcion,
       'evidencia_foto': evidenciaFoto,
       'estado': estado,
+      'sincronizado': sincronizado,
     };
   }
 
-  // Métodos de utilidad
+  // ======================
+  // UI / HELPERS
+  // ======================
+
   String get fechaFormateada =>
       '${fecha.day}/${fecha.month}/${fecha.year}';
 
@@ -75,8 +81,8 @@ class Avance {
         return Colors.yellow;
       case 'CANCELADO':
         return Colors.red;
-      default: // REGISTRADO
-        return Colors.blue;
+      default:
+        return Colors.blue; // REGISTRADO
     }
   }
 
@@ -100,7 +106,7 @@ class Avance {
       case 'FINALIZADO':
         return 'Finalizado';
       case 'EN_PROCESO':
-        return 'En Proceso';
+        return 'En proceso';
       case 'PENDIENTE':
         return 'Pendiente';
       case 'CANCELADO':
@@ -110,41 +116,54 @@ class Avance {
     }
   }
 
-  // Validaciones
+  // ======================
+  // VALIDACIONES
+  // ======================
+
   bool get tieneEvidencia =>
       evidenciaFoto != null && evidenciaFoto!.isNotEmpty;
+
   bool get tieneDescripcion =>
       descripcion != null && descripcion!.isNotEmpty;
-  bool get tieneHorasTrabajadas => horasTrabajadas > 0;
+
+  bool get tieneHorasTrabajadas => horasTrabajadas! > 0;
 
   String get porcentajeTexto =>
       '${porcentajeEjecutado.toStringAsFixed(1)}%';
 
   String? get horasTexto =>
-      horasTrabajadas > 0 ? '${horasTrabajadas.toStringAsFixed(1)} horas' : null;
+      horasTrabajadas! > 0
+          ? '${horasTrabajadas?.toStringAsFixed(1)} horas'
+          : null;
 
-  // Copiar con nuevos valores
+  // ======================
+  // COPY
+  // ======================
+
   Avance copyWith({
     int? idAvance,
+    int? idObra,
     int? idActividad,
-    int? idUsuario,
     DateTime? fecha,
-    double? porcentajeEjecutado,
     double? horasTrabajadas,
     String? descripcion,
     String? evidenciaFoto,
     String? estado,
+    int? sincronizado,
+    double? porcentajeEjecutado,
   }) {
     return Avance(
       idAvance: idAvance ?? this.idAvance,
+      idObra: idObra ?? this.idObra,
       idActividad: idActividad ?? this.idActividad,
-      idUsuario: idUsuario ?? this.idUsuario,
       fecha: fecha ?? this.fecha,
-      porcentajeEjecutado: porcentajeEjecutado ?? this.porcentajeEjecutado,
       horasTrabajadas: horasTrabajadas ?? this.horasTrabajadas,
       descripcion: descripcion ?? this.descripcion,
       evidenciaFoto: evidenciaFoto ?? this.evidenciaFoto,
       estado: estado ?? this.estado,
+      sincronizado: sincronizado ?? this.sincronizado,
+      porcentajeEjecutado:
+      porcentajeEjecutado ?? this.porcentajeEjecutado,
     );
   }
 }

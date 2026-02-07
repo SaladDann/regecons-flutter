@@ -5,7 +5,6 @@ import 'obra_detalle_screen.dart';
 import 'obras_form_screen.dart';
 import '../widgets/obra_card.dart';
 import '../widgets/search_bar.dart';
-import '../widgets/empty_state.dart';
 import '../widgets/loading_widget.dart';
 
 class ObrasScreen extends StatefulWidget {
@@ -31,17 +30,19 @@ class _ObrasScreenState extends State<ObrasScreen> {
   }
 
   Future<void> _cargarObras() async {
+    if (!mounted) return;
     setState(() => _isLoading = true);
     try {
-      // Obtener obras con actividades y porcentaje de avance calculado en DAO
       final obras = await _obraService.obtenerObrasConDetalles();
 
+      if (!mounted) return;
       setState(() {
         _todasObras = obras;
         _aplicarFiltros();
         _isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() => _isLoading = false);
       _mostrarError('Error al cargar las obras: ${e.toString()}');
     }
@@ -93,7 +94,7 @@ class _ObrasScreenState extends State<ObrasScreen> {
           idObra: obra.idObra!,
         ),
       ),
-    );
+    ).then((_) => _cargarObras());
   }
 
   @override
@@ -102,25 +103,29 @@ class _ObrasScreenState extends State<ObrasScreen> {
       backgroundColor: const Color(0xFF10121D),
       appBar: AppBar(
         elevation: 0,
+        centerTitle: true,
         backgroundColor: const Color(0xFF181B35),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.orange),
+          icon: const Icon(Icons.arrow_back_ios_new, color: Colors.orange, size: 20),
           onPressed: () => Navigator.of(context).pop(),
         ),
         title: const Text(
           'Gestión de Obras',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18),
         ),
         actions: [
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.only(right: 16),
+          Container(
+            margin: const EdgeInsets.only(right: 16, top: 12, bottom: 12),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: Colors.orange.withOpacity(0.3))
+            ),
+            child: Center(
               child: Text(
-                '${_obrasFiltradas.length} Total',
-                style: const TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
+                '${_obrasFiltradas.length}',
+                style: const TextStyle(color: Colors.orange, fontWeight: FontWeight.bold),
               ),
             ),
           ),
@@ -128,94 +133,118 @@ class _ObrasScreenState extends State<ObrasScreen> {
       ),
       body: Column(
         children: [
-          // BARRA DE BÚSQUEDA
           Container(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
             color: const Color(0xFF181B35),
             child: SearchBarWidget(
-              hintText: 'Buscar por nombre o cliente...',
+              hintText: 'Buscar nombre o cliente...',
               onSearch: _onSearch,
               onClear: () => _onSearch(''),
             ),
           ),
-
-          // FILTROS
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               children: [
                 FilterChip(
-                  label: const Text('Solo Activas'),
+                  label: const Text('SOLO ACTIVAS'),
                   selected: _showOnlyActive,
                   onSelected: (_) => _toggleFilterActive(),
                   backgroundColor: const Color(0xFF1E2130),
                   selectedColor: Colors.orange.withOpacity(0.2),
                   checkmarkColor: Colors.orange,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   labelStyle: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
                       color: _showOnlyActive ? Colors.orange : Colors.white60),
                 ),
                 const Spacer(),
                 IconButton(
+                  tooltip: 'Actualizar lista',
                   onPressed: _cargarObras,
-                  icon: const Icon(Icons.refresh, color: Colors.blue),
+                  icon: const Icon(Icons.sync, color: Colors.blueAccent),
                 ),
               ],
             ),
           ),
-
-          // LISTADO DE OBRAS
           Expanded(
-            child: _buildObrasList(),
+            child: RefreshIndicator(
+              color: Colors.orange,
+              backgroundColor: const Color(0xFF181B35),
+              onRefresh: _cargarObras,
+              child: _buildObrasList(),
+            ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _navegarAFormularioObra(),
         backgroundColor: Colors.orange,
-        icon: const Icon(Icons.add, color: Colors.white),
+        elevation: 4,
+        icon: const Icon(Icons.add_business_rounded, color: Colors.white),
         label: const Text('NUEVA OBRA',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, letterSpacing: 1)),
       ),
     );
   }
 
   Widget _buildObrasList() {
-    if (_isLoading) return const LoadingWidget(message: 'Cargando proyectos...');
+    if (_isLoading && _todasObras.isEmpty) {
+      return const LoadingWidget(message: 'Cargando proyectos...');
+    }
 
     if (_obrasFiltradas.isEmpty) {
-      return EmptyStateWidget(
-        title: 'Sin resultados',
-        message: 'No encontramos obras con esos criterios.',
-        icon: Icons.search_off,
-        actionText: 'Crear Obra',
-        onAction: () => _navegarAFormularioObra(),
+      return SingleChildScrollView(
+        physics: const AlwaysScrollableScrollPhysics(),
+        child: SizedBox(
+          height: MediaQuery.of(context).size.height * 0.6,
+          child: _InternalEmptyState(
+            title: _searchQuery.isEmpty ? 'No hay obras' : 'Sin coincidencias',
+            message: _searchQuery.isEmpty
+                ? 'Aún no has registrado ninguna obra en el sistema.'
+                : 'No encontramos nada que coincida con tu búsqueda.',
+            icon: _searchQuery.isEmpty ? Icons.inbox : Icons.search_off,
+            actionText: _searchQuery.isEmpty ? 'CREAR PRIMERA OBRA' : 'LIMPIAR FILTROS',
+
+          ),
+        ),
       );
     }
 
     return ListView.builder(
-      padding: const EdgeInsets.fromLTRB(12, 4, 12, 80),
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(12, 4, 12, 90),
       itemCount: _obrasFiltradas.length,
       itemBuilder: (context, index) {
         final obra = _obrasFiltradas[index];
-        return ObraCard(
-          obra: obra,
-          onEditar: () => _navegarAFormularioObra(obra: obra),
-          onFinalizar:
-          obra.estado == 'FINALIZADA' ? null : () => _finalizarObra(obra),
-          onEliminar: () => _mostrarConfirmacionEliminar(obra),
-          onTap: () => _verDetallesObra(obra),
+        return Padding(
+          padding: const EdgeInsets.only(bottom: 8.0),
+          child: ObraCard(
+            obra: obra,
+            onEditar: () => _navegarAFormularioObra(obra: obra),
+            onFinalizar: obra.estado == 'FINALIZADA' ? null : () => _finalizarObra(obra),
+            onEliminar: () => _mostrarConfirmacionEliminar(obra),
+            onTap: () => _verDetallesObra(obra),
+          ),
         );
       },
     );
   }
 
-  // MÉTODOS AUXILIARES
   void _mostrarError(String mensaje) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(mensaje),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
+        content: Row(
+          children: [
+            const Icon(Icons.error_outline, color: Colors.white),
+            const SizedBox(width: 10),
+            Expanded(child: Text(mensaje)),
+          ],
+        ),
+        backgroundColor: Colors.redAccent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
       ),
     );
   }
@@ -224,15 +253,18 @@ class _ObrasScreenState extends State<ObrasScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirmar Eliminación'),
+        backgroundColor: const Color(0xFF181B35),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+        title: const Text('¿Eliminar Obra?',
+            style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
         content: Text(
-          '¿Estás seguro de eliminar la obra "${obra.nombre}"?\n\n'
-              'Esta acción eliminará también todas las actividades y avances relacionados.',
+          'Se eliminará "${obra.nombre}" y todos sus datos relacionados de forma permanente.',
+          style: const TextStyle(color: Colors.white70),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancelar'),
+            child: const Text('CANCELAR', style: TextStyle(color: Colors.white54)),
           ),
           ElevatedButton(
             onPressed: () {
@@ -240,10 +272,10 @@ class _ObrasScreenState extends State<ObrasScreen> {
               _eliminarObra(obra);
             },
             style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
+                backgroundColor: Colors.redAccent,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8))
             ),
-            child: const Text('Eliminar'),
+            child: const Text('ELIMINAR', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -251,36 +283,27 @@ class _ObrasScreenState extends State<ObrasScreen> {
   }
 
   Future<void> _eliminarObra(Obra obra) async {
-    if (obra.idObra == null) {
-      _mostrarError('La obra no tiene ID válido');
-      return;
-    }
-
+    if (obra.idObra == null) return;
     try {
       await _obraService.eliminarObraCompleta(obra.idObra!);
-
       setState(() {
         _todasObras.removeWhere((o) => o.idObra == obra.idObra);
-        _obrasFiltradas.removeWhere((o) => o.idObra == obra.idObra);
+        _aplicarFiltros();
       });
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Obra "${obra.nombre}" eliminada'),
+          content: Text('"${obra.nombre}" eliminada con éxito'),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
-      _mostrarError('Error al eliminar obra: ${e.toString()}');
+      _mostrarError('Error al eliminar: $e');
     }
   }
 
   Future<void> _finalizarObra(Obra obra) async {
-    if (obra.idObra == null) {
-      _mostrarError('La obra no tiene ID válido');
-      return;
-    }
-
+    if (obra.idObra == null) return;
     try {
       final obraActualizada = Obra(
         idObra: obra.idObra,
@@ -292,29 +315,66 @@ class _ObrasScreenState extends State<ObrasScreen> {
         fechaFin: obra.fechaFin,
         presupuesto: obra.presupuesto,
         estado: 'FINALIZADA',
-        porcentajeAvance: obra.porcentajeAvance,
+        porcentajeAvance: 100.0,
       );
 
       await _obraService.actualizarObra(obraActualizada);
-
-      setState(() {
-        final index = _todasObras.indexWhere((o) => o.idObra == obra.idObra);
-        if (index != -1) _todasObras[index] = obraActualizada;
-
-        final filtradoIndex =
-        _obrasFiltradas.indexWhere((o) => o.idObra == obra.idObra);
-        if (filtradoIndex != -1) _obrasFiltradas[filtradoIndex] =
-            obraActualizada;
-      });
+      await _cargarObras();
 
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Obra finalizada correctamente'),
+          content: Text('Obra marcada como FINALIZADA'),
           backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
         ),
       );
     } catch (e) {
-      _mostrarError('Error al finalizar obra: ${e.toString()}');
+      _mostrarError('Error al finalizar: $e');
     }
+  }
+}
+
+// COMPONENTE EMPTY STATE INTEGRADO
+class _InternalEmptyState extends StatelessWidget {
+  final String title;
+  final String message;
+  final IconData icon;
+  //final VoidCallback onAction;
+  final String actionText;
+
+  const _InternalEmptyState({
+    required this.title,
+    required this.message,
+    required this.icon,
+    //required this.onAction,
+    required this.actionText,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 60, color: Colors.orange),
+            ),
+            const SizedBox(height: 24),
+            Text(title, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white70)),
+            const SizedBox(height: 12),
+            Text(message, style: const TextStyle(fontSize: 14, color: Colors.white54, height: 1.5), textAlign: TextAlign.center),
+            const SizedBox(height: 24),
+
+          ],
+        ),
+      ),
+    );
   }
 }
