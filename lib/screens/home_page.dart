@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:regcons/screens/obras/obras_screen.dart';
-import 'package:regcons/screens/obras/obra_detalle_screen.dart';
-import 'package:regcons/screens/reporte_seguridad_screen.dart';
-import 'package:regcons/screens/reportes_screen.dart';
-import '../models/obra.dart';
-import '../services/obra_service.dart';
+import 'package:regcons/screens/gestion_incidentes/reportes_incidentes_screen.dart';
+import 'package:regcons/screens/gestion_reportes/reportes_screen.dart';
+import '../models/gestion_obras/obra.dart';
+import '../services/gestion_obras/obra_service.dart';
+import 'gestion_obras/obra_detalle_screen.dart';
+import 'gestion_obras/obras_screen.dart';
 import 'news_page.dart';
 import 'configuraciones_screen.dart';
 
@@ -17,14 +17,12 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
-  // Ahora el índice 2 es el centro (Home)
   int _selectedIndex = 2;
   final ObraService _obraService = ObraService();
   Obra? _obraSeleccionada;
   List<Obra> _obrasActivas = [];
   bool _isLoading = true;
 
-  // Reordenamos títulos para que coincidan con la nueva posición
   static const List<String> _titles = [
     'Ajustes',
     'Noticias',
@@ -105,13 +103,27 @@ class _HomePageState extends State<HomePage> {
   }
 
   Widget _buildContent() {
-    // Mapeo de contenido según el nuevo orden
     switch (_selectedIndex) {
       case 0: return const ConfiguracionesScreen();
       case 1: return const NewsPage();
       case 2: return _buildHomeContent();
-      case 3: return const ReporteSeguridadScreen();
-      case 4: return const ReportesScreen();
+      case 3: if (_obraSeleccionada == null) {
+        return const Center(
+          child: Text(
+            'Seleccione una obra activa',
+            style: TextStyle(color: Colors.white70),
+          ),
+        );
+      }
+      return IncidentesScreen(obra: _obraSeleccionada!);
+      case 4: if (_obraSeleccionada == null || _obraSeleccionada!.idObra == null) {
+        return const Center(
+            child: Text('Seleccione una obra para generar reportes',
+                style: TextStyle(color: Colors.white70))
+        );
+      }
+      return ReportesScreen();
+
       default: return const SizedBox();
     }
   }
@@ -141,13 +153,13 @@ class _HomePageState extends State<HomePage> {
 
           const SizedBox(height: 24),
           const Text('CONTROL OPERATIVO', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-          const SizedBox(height: 12),
+
 
           _buildGridAcciones(),
 
           const SizedBox(height: 24),
           const Text('RESUMEN DE PROYECTOS', style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold, letterSpacing: 1.2)),
-          const SizedBox(height: 12),
+          const SizedBox(height: 24),
           _buildResumenEstadistico(),
         ],
       ),
@@ -271,11 +283,21 @@ class _HomePageState extends State<HomePage> {
             icon: Icons.business_center_outlined,
             label: 'Gestionar\nObras',
             color: Colors.blueAccent,
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ObrasScreen())).then((_) => _cargarObrasActivas())
+            onTap: () => Navigator.push(
+                context, MaterialPageRoute(
+                builder: (context) => const ObrasScreen()
+            )).then((_) => _cargarObrasActivas())
         ),
-        // Aquí ajustamos el onTap para que apunte al nuevo índice de Incidentes (3) y Reportes (4)
-        _buildActionCard(icon: Icons.report_problem_outlined, label: 'Nuevo\nIncidente', color: Colors.redAccent, onTap: () => setState(() => _selectedIndex = 3)),
-        _buildActionCard(icon: Icons.analytics_outlined, label: 'Reportes\nPDF', color: Colors.purpleAccent, onTap: () => setState(() => _selectedIndex = 4)),
+        _buildActionCard(
+            icon: Icons.report_problem_outlined,
+            label: 'Nuevo\nIncidente',
+            color: Colors.redAccent,
+            onTap: () => setState(() => _selectedIndex = 3)),
+        _buildActionCard(
+            icon: Icons.analytics_outlined,
+            label: 'Reportes\nPDF',
+            color: Colors.purpleAccent,
+            onTap: () => setState(() => _selectedIndex = 4)),
       ],
     );
   }
@@ -347,12 +369,12 @@ class _HomePageState extends State<HomePage> {
       elevation: 0,
       selectedLabelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
       items: const [
-        // IZQUIERDA: Poco uso
+
         BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Ajustes'),
         BottomNavigationBarItem(icon: Icon(Icons.newspaper), label: 'Noticias'),
-        // CENTRO: Inicio
+
         BottomNavigationBarItem(icon: Icon(Icons.home_filled), label: 'Inicio'),
-        // DERECHA: Más uso
+
         BottomNavigationBarItem(icon: Icon(Icons.report), label: 'Incidentes'),
         BottomNavigationBarItem(icon: Icon(Icons.assessment), label: 'Reportes'),
       ],
